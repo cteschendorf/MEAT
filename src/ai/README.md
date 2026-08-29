@@ -1,0 +1,1 @@
+AI implementations must return validated structured proposals. AI does not perform authoritative nutrition arithmetic or write directly to persistence without application-layer validation and user-confirmation rules.
