@@ -65,6 +65,24 @@ const migrations: ReadonlyArray<Migration> = [
       `);
     },
   },
+  {
+    version: 3,
+    name: 'segregated-external-food-cache',
+    async up(db) {
+      await db.execAsync(`
+        CREATE TABLE IF NOT EXISTS external_food_cache (
+          provider TEXT NOT NULL,
+          cache_key TEXT NOT NULL,
+          fetched_at TEXT NOT NULL,
+          expires_at TEXT,
+          payload TEXT NOT NULL,
+          PRIMARY KEY (provider, cache_key)
+        );
+        CREATE INDEX IF NOT EXISTS external_food_cache_freshness_idx
+          ON external_food_cache (provider, fetched_at DESC);
+      `);
+    },
+  },
 ];
 
 export async function migrateDatabase(db: SQLiteDatabase): Promise<void> {
