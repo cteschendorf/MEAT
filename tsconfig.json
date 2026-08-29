@@ -9,5 +9,6 @@
       "@/*": ["./src/*"]
     }
   },
-  "include": ["**/*.ts", "**/*.tsx", ".expo/types/**/*.ts", "expo-env.d.ts"]
+  "include": ["app/**/*.ts", "app/**/*.tsx", "src/**/*.ts", "src/**/*.tsx", "tests/**/*.ts", ".expo/types/**/*.ts", "expo-env.d.ts"],
+  "exclude": ["services/usda-proxy", "node_modules"]
 }

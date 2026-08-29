@@ -44,7 +44,7 @@ export interface NutrientValue {
 
 export interface NutritionFacts {
   basisGrams?: number;
-  nutrients: ReadonlyArray<NutrientValue>;
+  nutrients: readonly NutrientValue[];
 }
 
 export function knownNutrientValue(

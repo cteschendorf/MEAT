@@ -21,8 +21,15 @@ export function gramsForFoodPortion(
   food: Food,
   portion: { servingId?: string; quantity: number; gramWeight?: number },
 ): number {
-  if (portion.quantity < 0) throw new Error('Portion quantity cannot be negative.');
-  if (portion.gramWeight !== undefined) return portion.gramWeight;
+  if (!Number.isFinite(portion.quantity) || portion.quantity < 0) {
+    throw new Error('Portion quantity must be a finite nonnegative number.');
+  }
+  if (portion.gramWeight !== undefined) {
+    if (!Number.isFinite(portion.gramWeight) || portion.gramWeight <= 0) {
+      throw new Error('Portion gram weight must be a finite number greater than zero.');
+    }
+    return portion.gramWeight;
+  }
 
   if (!portion.servingId) {
     throw new Error(`No gram weight or serving supplied for ${food.name}.`);
@@ -33,12 +40,20 @@ export function gramsForFoodPortion(
     throw new Error(`Serving ${portion.servingId} has no gram weight.`);
   }
 
-  return serving.gramWeight * portion.quantity;
+  if (!Number.isFinite(serving.gramWeight) || serving.gramWeight <= 0) {
+    throw new Error(`Serving ${portion.servingId} requires a finite positive gram weight.`);
+  }
+
+  const grams = serving.gramWeight * portion.quantity;
+  if (!Number.isFinite(grams)) throw new Error('Calculated portion grams must be finite.');
+  return grams;
 }
 
 export function scaleNutritionFacts(facts: NutritionFacts, targetGrams: number): NutritionFacts {
-  if (targetGrams < 0) throw new Error('Target grams cannot be negative.');
-  if (!facts.basisGrams || facts.basisGrams <= 0) {
+  if (!Number.isFinite(targetGrams) || targetGrams < 0) {
+    throw new Error('Target grams must be a finite nonnegative number.');
+  }
+  if (!facts.basisGrams || !Number.isFinite(facts.basisGrams) || facts.basisGrams <= 0) {
     throw new Error('Nutrition facts require a positive gram basis for scaling.');
   }
 
@@ -48,6 +63,10 @@ export function scaleNutritionFacts(facts: NutritionFacts, targetGrams: number):
     nutrients: facts.nutrients.map((entry) => {
       if (entry.state === 'unknown' || entry.value === undefined) {
         return { nutrient: entry.nutrient, state: 'unknown' } satisfies NutrientValue;
+      }
+
+      if (!Number.isFinite(entry.value) || entry.value < 0) {
+        throw new Error(`${entry.nutrient.name} must be a finite nonnegative nutrition value.`);
       }
 
       return {
@@ -61,12 +80,17 @@ export function scaleNutritionFacts(facts: NutritionFacts, targetGrams: number):
   };
 }
 
-export function aggregateNutritionFacts(factsList: ReadonlyArray<NutritionFacts>): NutritionFacts {
+export function aggregateNutritionFacts(factsList: readonly NutritionFacts[]): NutritionFacts {
   if (factsList.length === 0) return { nutrients: [] };
 
   const definitions = new Map<string, NutrientDefinition>();
   for (const facts of factsList) {
-    for (const entry of facts.nutrients) definitions.set(entry.nutrient.code, entry.nutrient);
+    for (const entry of facts.nutrients) {
+      if (entry.value !== undefined && (!Number.isFinite(entry.value) || entry.value < 0)) {
+        throw new Error(`${entry.nutrient.name} must be a finite nonnegative nutrition value.`);
+      }
+      definitions.set(entry.nutrient.code, entry.nutrient);
+    }
   }
 
   const nutrients: NutrientValue[] = [];
@@ -126,7 +150,9 @@ export function nutritionForRecipe(recipe: Recipe, foods: ReadonlyMap<string, Fo
 }
 
 export function nutritionPerRecipeServing(recipe: Recipe, foods: ReadonlyMap<string, Food>): NutritionFacts {
-  if (recipe.yieldServings <= 0) throw new Error('Recipe yield must be greater than zero.');
+  if (!Number.isFinite(recipe.yieldServings) || recipe.yieldServings <= 0) {
+    throw new Error('Recipe yield must be a finite number greater than zero.');
+  }
   const total = nutritionForRecipe(recipe, foods);
 
   return {

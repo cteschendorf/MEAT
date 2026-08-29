@@ -1,7 +1,7 @@
 import type { Food, Meal, NutrientDefinition, NutrientValue } from '@/domain';
-import type { FoodId, FoodServingId, ISODateTime, MealId, MealItemId } from '@/domain/shared/ids';
+import { foodIdForRef } from '@/domain/food/source';
+import type { FoodServingId, ISODateTime, MealId, MealItemId, SourceRecordId } from '@/domain/shared/ids';
 import type { FoodRepository, MealRepository } from '@/data/repositories/contracts';
-import type { LocalFoodCorpus, LocalFoodSearchResult } from '@/data/food-data/local-corpus';
 
 export interface ManualFoodInput {
   name: string;
@@ -28,21 +28,26 @@ const definitions: readonly [string, string, 'kcal' | 'g', ManualNutrientKey][] 
   ['fiber-g', 'Fiber', 'g', 'fiber'],
 ];
 
+function requireFinitePositive(value: number, message: string): void {
+  if (!Number.isFinite(value) || value <= 0) throw new Error(message);
+}
+
 export class FoodLoggingService {
   constructor(
-    private readonly corpus: LocalFoodCorpus,
     private readonly foods: FoodRepository,
     private readonly meals: MealRepository,
     private readonly idFactory: (prefix: string) => string,
   ) {}
 
-  async search(query: string): Promise<readonly LocalFoodSearchResult[]> {
-    return this.corpus.search(query);
-  }
-
   async createManualFood(input: ManualFoodInput, now: ISODateTime): Promise<Food> {
     if (!input.name.trim()) throw new Error('Food name is required.');
-    if (!(input.servingGrams > 0)) throw new Error('Serving grams must be greater than zero.');
+    requireFinitePositive(input.servingGrams, 'Serving grams must be a finite number greater than zero.');
+    for (const [, name, , key] of definitions) {
+      const value = input[key];
+      if (value !== undefined && (!Number.isFinite(value) || value < 0)) {
+        throw new Error(`${name} must be a finite nonnegative number.`);
+      }
+    }
 
     const scale = 100 / input.servingGrams;
     const nutrients: NutrientValue[] = definitions.map(([code, name, unit, key]) => {
@@ -57,7 +62,8 @@ export class FoodLoggingService {
             source: { kind: 'user-entered', provider: 'MEAT manual food' },
           };
     });
-    const id = this.idFactory('food') as FoodId;
+    const recordId = this.idFactory('food') as SourceRecordId;
+    const id = foodIdForRef({ sourceId: 'personal', recordId });
     const food: Food = {
       id,
       kind: 'custom',
@@ -75,7 +81,7 @@ export class FoodLoggingService {
           isDefault: true,
         },
       ],
-      primarySource: { kind: 'user-entered', provider: 'MEAT manual food' },
+      primarySource: { kind: 'user-entered', provider: 'MEAT personal food', recordId },
       createdAt: now,
       updatedAt: now,
     };
@@ -84,7 +90,7 @@ export class FoodLoggingService {
   }
 
   async logFood(food: Food, gramWeight: number, occurredAt: ISODateTime): Promise<Meal> {
-    if (!(gramWeight > 0)) throw new Error('Portion must be greater than zero grams.');
+    requireFinitePositive(gramWeight, 'Portion must be a finite number greater than zero grams.');
     const meal: Meal = {
       id: this.idFactory('meal') as MealId,
       occurredAt,
@@ -112,7 +118,7 @@ export class FoodLoggingService {
     gramWeight: number,
     now: ISODateTime,
   ): Promise<Meal> {
-    if (!(gramWeight > 0)) throw new Error('Portion must be greater than zero grams.');
+    requireFinitePositive(gramWeight, 'Portion must be a finite number greater than zero grams.');
     const items = meal.items.map((item) =>
       item.id === itemId ? { ...item, portion: { ...item.portion, gramWeight } } : item,
     );

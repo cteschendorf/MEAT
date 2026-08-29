@@ -22,9 +22,10 @@ export default function RootLayout() {
   const router = useRouter();
   const segments = useSegments();
   const routeKey = segments.join('/');
+  const isOnboardingRoute = routeKey === 'onboarding';
 
   useEffect(() => {
-    if (segments[0] === 'onboarding') return;
+    if (isOnboardingRoute) return;
     let active = true;
     void openMeatDatabase()
       .then(async (db) => {
@@ -37,7 +38,7 @@ export default function RootLayout() {
     return () => {
       active = false;
     };
-  }, [routeKey, router, segments]);
+  }, [isOnboardingRoute, router]);
 
   return (
     <Tabs screenOptions={{ headerShadowVisible: false }}>

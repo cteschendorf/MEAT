@@ -7,6 +7,7 @@ import type { GoalRepository, UserPreferencesRepository } from '../src/data/repo
 import {
   buildNutritionGoals,
   defaultUserPreferences,
+  goalSetupDefinitions,
   OnboardingSetupService,
 } from '../src/services/onboarding/setup';
 
@@ -32,6 +33,30 @@ test('setup validates goal semantics before persistence', () => {
     () => buildNutritionGoals([{ nutrientCode: 'protein-g', mode: 'minimum' }], now),
     /requires a non-negative minimum/,
   );
+});
+
+test('candidate setup normalizes unsupported ounce drafts to grams', async () => {
+  const savedPreferences: UserPreferences[] = [];
+  const preferenceRepo: UserPreferencesRepository = {
+    async get() { return null; },
+    async save(value) { savedPreferences.push(value); },
+    async isOnboardingComplete() { return false; },
+    async markOnboardingComplete() {},
+  };
+  const goalRepo: GoalRepository = {
+    async save() {},
+    async listActive() { return []; },
+  };
+
+  await new OnboardingSetupService(preferenceRepo, goalRepo).save(
+    {
+      preferences: { ...defaultUserPreferences, massUnit: 'oz' },
+      goals: goalSetupDefinitions.map(({ nutrientCode }) => ({ nutrientCode, mode: 'none' })),
+    },
+    now,
+  );
+
+  assert.equal(savedPreferences[0]?.massUnit, 'g');
 });
 
 test('skip stores neutral preferences and informational goals, then completes onboarding', async () => {

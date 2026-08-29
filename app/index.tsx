@@ -1,14 +1,14 @@
 import { useFocusEffect, useRouter } from 'expo-router';
-import { useCallback, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { Pressable, ScrollView, Text, View } from 'react-native';
 
 import {
-  openMeatDatabase,
-  SqliteFoodRepository,
-  SqliteGoalRepository,
-  SqliteMealRepository,
-} from '@/data';
-import { buildTodaySnapshot, type TodayMetric, type TodaySnapshot } from '@/services';
+  buildTodaySnapshot,
+  openAppServices,
+  type TodayMetric,
+  type TodaySnapshot,
+} from '@/services';
+import { LatestRequestGate } from '@/services/actions/exclusive-action';
 import { ActionButton, ScreenState, Surface, spacing, typography, useThemeColors } from '@/ui';
 
 const metricLabels: Record<TodayMetric['code'], string> = {
@@ -48,30 +48,38 @@ export default function TodayScreen() {
   const [date, setDate] = useState(() => new Date());
   const [snapshot, setSnapshot] = useState<TodaySnapshot | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const requestGate = useRef(new LatestRequestGate()).current;
 
   const load = useCallback(async () => {
+    const requestGeneration = requestGate.begin();
+    const requestedDate = new Date(date);
     try {
-      const db = await openMeatDatabase();
-      const next = await buildTodaySnapshot(date, {
-        meals: new SqliteMealRepository(db),
-        foods: new SqliteFoodRepository(db),
-        goals: new SqliteGoalRepository(db),
+      const services = await openAppServices();
+      const next = await buildTodaySnapshot(requestedDate, {
+        meals: services.meals,
+        foods: services.foods,
+        goals: services.goals,
       });
+      if (!requestGate.isCurrent(requestGeneration)) return;
       setSnapshot(next);
       setError(null);
     } catch (caught) {
+      if (!requestGate.isCurrent(requestGeneration)) return;
       setError(caught instanceof Error ? caught.message : 'Unable to load Today.');
     }
-  }, [date]);
+  }, [date, requestGate]);
 
   useFocusEffect(
     useCallback(() => {
       void load();
-    }, [load]),
+      return () => requestGate.invalidate();
+    }, [load, requestGate]),
   );
 
   function moveDay(days: number) {
+    requestGate.invalidate();
     setSnapshot(null);
+    setError(null);
     setDate((current) => {
       const next = new Date(current);
       next.setDate(next.getDate() + days);
@@ -114,6 +122,13 @@ export default function TodayScreen() {
 
       {snapshot ? (
         <>
+          {snapshot.unavailableItems.length ? (
+            <ScreenState
+              title="Some logged foods are unavailable"
+              message={`${snapshot.unavailableItems.length} logged ${snapshot.unavailableItems.length === 1 ? 'item could' : 'items could'} not be read from saved provider data. Your meal history is preserved, but totals are hidden so MEAT does not show a misleading subtotal.`}
+              role="alert"
+            />
+          ) : null}
           <View style={{ gap: spacing.sm }}>
             {snapshot.metrics.map((metric) => (
               <Surface key={metric.code}>

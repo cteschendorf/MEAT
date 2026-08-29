@@ -116,7 +116,7 @@ export class FoodSuggestionsService {
       this.favorites.listFavoriteIds(),
     ]);
     const ranked = rankFoodUsage(meals, favoriteIds, now, Math.max(limit * 4, 24));
-    const resolved = await Promise.all(
+    const resolved = await Promise.allSettled(
       ranked.map(async (usage): Promise<FoodSuggestion | null> => {
         const food = await this.foods.getById(usage.foodId);
         if (!food) return null;
@@ -129,7 +129,14 @@ export class FoodSuggestionsService {
       }),
     );
 
-    return resolved.filter((suggestion): suggestion is FoodSuggestion => suggestion !== null).slice(0, limit);
+    return resolved
+      .filter(
+        (result): result is PromiseFulfilledResult<FoodSuggestion | null> =>
+          result.status === 'fulfilled',
+      )
+      .map((result) => result.value)
+      .filter((suggestion): suggestion is FoodSuggestion => suggestion !== null)
+      .slice(0, limit);
   }
 
   async setFavorite(food: Food, favorite: boolean, now: ISODateTime): Promise<void> {

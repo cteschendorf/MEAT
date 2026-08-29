@@ -1,106 +1,205 @@
 import { CameraView, useCameraPermissions } from 'expo-camera';
-import { Link, useRouter } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useRouter } from 'expo-router';
+import { useEffect, useRef, useState } from 'react';
 import { ScrollView, Text, TextInput, View } from 'react-native';
 
-import type { Food } from '@/domain';
+import type { FoodCandidate, FoodSourceId } from '@/domain/food/source';
 import type { ISODateTime } from '@/domain/shared/ids';
+import { openAppServices } from '@/services';
+import { ExclusiveActionGate } from '@/services/actions/exclusive-action';
 import {
-  ExternalFoodCache,
-  FoodSourcePreferenceStore,
-  LocalFoodCorpus,
-  OpenFoodFactsProvider,
-  openMeatDatabase,
-  SqliteFoodRepository,
-  SqliteMealRepository,
-} from '@/data';
-import { BarcodeLookupService, type BarcodeResolution } from '@/services/logging/barcode';
-import { FoodLoggingService, defaultLocalIdFactory } from '@/services/logging/food-logging';
-import { ActionButton, ScreenState, Surface, spacing, typography, useThemeColors } from '@/ui';
+  BarcodeScanDeduplicator,
+  cameraPermissionPlan,
+  scannerBarcodeFormat,
+  SourceAwareBarcodeService,
+  supportedScannerBarcodeFormats,
+  type BarcodeSourceOutcome,
+  type ScannerBarcodeFormat,
+  type SourceAwareBarcodeResolution,
+} from '@/services/logging/source-aware-barcode';
+import { ActionButton, Surface, spacing, typography, useThemeColors } from '@/ui';
 
-const supportedBarcodeTypes = ['ean13', 'ean8', 'upc_a', 'upc_e'] as const;
+const sourceNames: Readonly<Record<FoodSourceId, string>> = {
+  personal: 'My foods',
+  'usda-core': 'USDA — on device',
+  'usda-fdc': 'USDA — online',
+  'open-food-facts': 'Open Food Facts',
+};
 
-function initialPortion(food: Food): number {
-  return food.servings.find((serving) => serving.isDefault)?.gramWeight ?? food.servings[0]?.gramWeight ?? 100;
+function candidateKey(candidate: FoodCandidate): string {
+  return `${candidate.ref.sourceId}:${candidate.ref.recordId}`;
+}
+
+function initialPortion(candidate: FoodCandidate): number {
+  return (
+    candidate.portions.find((portion) => portion.isDefault && portion.gramWeight)?.gramWeight ??
+    candidate.portions.find((portion) => portion.gramWeight)?.gramWeight ??
+    100
+  );
+}
+
+function freshnessText(outcome: Extract<BarcodeSourceOutcome, { state: 'found' }>): string {
+  if (outcome.freshness === 'stale-cache') return 'Saved result · may be out of date';
+  if (outcome.freshness === 'fresh-cache') return 'Saved result';
+  return 'Live result';
 }
 
 export default function ScanBarcodeScreen() {
   const colors = useThemeColors();
   const router = useRouter();
   const [permission, requestPermission] = useCameraPermissions();
-  const [lookup, setLookup] = useState<BarcodeLookupService | null>(null);
-  const [logging, setLogging] = useState<FoodLoggingService | null>(null);
+  const [service, setService] = useState<SourceAwareBarcodeService | null>(null);
+  const [cameraActive, setCameraActive] = useState(false);
   const [manualBarcode, setManualBarcode] = useState('');
-  const [resolution, setResolution] = useState<BarcodeResolution | null>(null);
+  const [resolution, setResolution] = useState<SourceAwareBarcodeResolution | null>(null);
+  const [selected, setSelected] = useState<FoodCandidate | null>(null);
   const [grams, setGrams] = useState('100');
   const [resolving, setResolving] = useState(false);
+  const [logging, setLogging] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const inFlight = useRef(false);
+  const abortController = useRef<AbortController | null>(null);
+  const deduplicator = useRef(new BarcodeScanDeduplicator());
+  const logGate = useRef(new ExclusiveActionGate()).current;
 
   useEffect(() => {
     let active = true;
-    void openMeatDatabase()
-      .then((db) => {
-        if (!active) return;
-        const foods = new SqliteFoodRepository(db);
-        const meals = new SqliteMealRepository(db);
-        const corpus = new LocalFoodCorpus(db);
-        const preferences = new FoodSourcePreferenceStore(db);
-        setLookup(
-          new BarcodeLookupService(
-            foods,
-            corpus,
-            [new OpenFoodFactsProvider('MEAT/0.1.0 (com.thingcorp.meat)')],
-            new ExternalFoodCache(db),
-            preferences,
-          ),
-        );
-        setLogging(new FoodLoggingService(corpus, foods, meals, defaultLocalIdFactory));
+    void openAppServices()
+      .then((services) => {
+        if (active) setService(new SourceAwareBarcodeService(services.discovery, services.logging));
       })
       .catch((error: unknown) => {
-        if (active) setMessage(error instanceof Error ? error.message : 'Unable to open the food database.');
+        if (active) setMessage(error instanceof Error ? error.message : 'Unable to open food data sources.');
       });
     return () => {
       active = false;
+      abortController.current?.abort();
     };
   }, []);
 
-  async function resolveBarcode(value: string) {
-    if (!lookup || resolving) return;
+  function chooseCandidate(candidate: FoodCandidate) {
+    setSelected(candidate);
+    setGrams(String(initialPortion(candidate)));
+  }
+
+  async function startCamera() {
     setMessage(null);
-    setResolving(true);
-    try {
-      const result = await lookup.resolve(value);
-      setResolution(result);
-      setManualBarcode(result.barcode);
-      if (result.status === 'found') setGrams(String(initialPortion(result.food)));
-    } catch (error) {
+    const plan = cameraPermissionPlan(permission);
+    if (plan === 'ready') {
+      deduplicator.current.reset();
       setResolution(null);
-      setMessage(error instanceof Error ? error.message : 'Unable to read that barcode.');
+      setSelected(null);
+      setCameraActive(true);
+      return;
+    }
+    if (plan === 'checking') {
+      setMessage('Camera access is still being checked. You can enter the barcode below.');
+      return;
+    }
+    if (plan === 'blocked') {
+      setMessage('Camera access is disabled in Settings. You can still enter the barcode below.');
+      return;
+    }
+    // The operating-system permission prompt is reached only from this user action.
+    const next = await requestPermission();
+    if (next.granted) {
+      deduplicator.current.reset();
+      setCameraActive(true);
+    } else {
+      setMessage('Camera access was not granted. You can still enter the barcode below.');
+    }
+  }
+
+  async function resolveBarcode(value: string, format?: ScannerBarcodeFormat) {
+    if (!service || inFlight.current) return;
+    inFlight.current = true;
+    setResolving(true);
+    setMessage(null);
+    abortController.current?.abort();
+    const controller = new AbortController();
+    abortController.current = controller;
+    try {
+      const result = await service.lookup(value, {
+        ...(format ? { format } : {}),
+        signal: controller.signal,
+      });
+      if (controller.signal.aborted) return;
+      setManualBarcode(result.barcode);
+      setCameraActive(false);
+      if (result.status === 'not-found') {
+        router.replace({ pathname: '/manual-food', params: { barcode: result.barcode } });
+        return;
+      }
+      setResolution(result);
+      const first = result.sources.find(
+        (outcome): outcome is Extract<BarcodeSourceOutcome, { state: 'found' }> =>
+          outcome.state === 'found',
+      );
+      if (first) chooseCandidate(first.candidate);
+      else setSelected(null);
+    } catch (error) {
+      if (!controller.signal.aborted) {
+        setMessage(error instanceof Error ? error.message : 'Unable to read that barcode.');
+      }
     } finally {
+      if (abortController.current === controller) abortController.current = null;
+      inFlight.current = false;
       setResolving(false);
     }
   }
 
-  async function logResolvedFood() {
-    if (!logging || resolution?.status !== 'found') return;
+  function handleCameraBarcode(data: string, rawType: string) {
+    const format = scannerBarcodeFormat(rawType);
+    if (!format) return;
+    try {
+      if (!deduplicator.current.accept(data, format)) return;
+      void resolveBarcode(data, format);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Unable to read that barcode.');
+    }
+  }
+
+  async function persistAndLog() {
+    if (!service || !selected) return;
     const amount = Number(grams);
     if (!Number.isFinite(amount) || amount <= 0) {
       setMessage('Enter a portion greater than zero grams.');
       return;
     }
-    setMessage(null);
-    try {
-      await logging.logFood(resolution.food, amount, new Date().toISOString() as ISODateTime);
-      router.replace('/');
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : 'Unable to log food.');
-    }
+    await logGate.run(async () => {
+      setLogging(true);
+      setMessage(null);
+      try {
+        await service.persistAndLog(
+          selected,
+          amount,
+          new Date().toISOString() as ISODateTime,
+        );
+        router.replace('/');
+      } catch (error) {
+        setMessage(error instanceof Error ? error.message : 'Unable to save and log this food.');
+      } finally {
+        setLogging(false);
+      }
+    });
   }
 
-  if (permission === null) return <ScreenState title="Loading camera" message="Checking camera availability." />;
+  function scanAnother() {
+    deduplicator.current.reset();
+    setResolution(null);
+    setSelected(null);
+    setMessage(null);
+    setCameraActive(permission?.granted ?? false);
+  }
 
-  const found = resolution?.status === 'found' ? resolution : null;
-  const scanningEnabled = permission.granted && !resolving && !found;
+  const permissionPlan = cameraPermissionPlan(permission);
+  const cameraButtonLabel = permissionPlan === 'ready'
+    ? 'Scan barcode'
+    : permissionPlan === 'checking'
+      ? 'Checking camera access…'
+      : permissionPlan === 'request'
+        ? 'Scan and allow camera'
+        : 'Camera access unavailable';
 
   return (
     <ScrollView
@@ -110,25 +209,36 @@ export default function ScanBarcodeScreen() {
     >
       <View style={{ gap: spacing.xs }}>
         <Text allowFontScaling selectable style={[typography.title1, { color: colors.textPrimary }]}>Scan barcode</Text>
-        <Text allowFontScaling selectable style={[typography.body, { color: colors.textSecondary }]}>MEAT checks your saved foods and the on-device index first, then uses enabled free/open sources only when needed.</Text>
+        <Text allowFontScaling selectable style={[typography.body, { color: colors.textSecondary }]}>Each enabled source is checked independently. MEAT keeps provider records separate and can use a marked saved result when the network is offline.</Text>
       </View>
 
-      {!permission.granted ? (
+      {cameraActive && permission?.granted ? (
         <Surface>
-          <Text allowFontScaling style={[typography.bodyStrong, { color: colors.textPrimary }]}>Camera permission</Text>
-          <Text allowFontScaling selectable style={[typography.body, { color: colors.textSecondary }]}>Camera access is used only while you are scanning a food barcode.</Text>
-          <ActionButton label={permission.canAskAgain ? 'Allow camera' : 'Camera access unavailable'} onPress={() => void requestPermission()} disabled={!permission.canAskAgain} />
+          <View accessible={false} style={{ borderRadius: 16, overflow: 'hidden', minHeight: 320 }}>
+            <CameraView
+              style={{ flex: 1, minHeight: 320 }}
+              facing="back"
+              active={!resolving && !resolution}
+              barcodeScannerSettings={{ barcodeTypes: [...supportedScannerBarcodeFormats] }}
+              onBarcodeScanned={
+                resolving || resolution
+                  ? undefined
+                  : ({ data, type }) => handleCameraBarcode(data, type)
+              }
+            />
+          </View>
+          <ActionButton label="Stop camera" tone="secondary" onPress={() => setCameraActive(false)} />
         </Surface>
       ) : (
-        <View accessible={false} style={{ borderRadius: 16, overflow: 'hidden', minHeight: 320 }}>
-          <CameraView
-            style={{ flex: 1, minHeight: 320 }}
-            facing="back"
-            active={scanningEnabled}
-            barcodeScannerSettings={{ barcodeTypes: [...supportedBarcodeTypes] }}
-            onBarcodeScanned={scanningEnabled ? ({ data }) => void resolveBarcode(data) : undefined}
+        <Surface>
+          <Text allowFontScaling style={[typography.bodyStrong, { color: colors.textPrimary }]}>Use the camera</Text>
+          <Text allowFontScaling selectable style={[typography.body, { color: colors.textSecondary }]}>Camera permission is requested only after you choose to scan. The camera is active only on this screen.</Text>
+          <ActionButton
+            label={cameraButtonLabel}
+            onPress={() => void startCamera()}
+            disabled={!service || permissionPlan === 'checking' || permissionPlan === 'blocked'}
           />
-        </View>
+        </Surface>
       )}
 
       <Surface>
@@ -136,23 +246,69 @@ export default function ScanBarcodeScreen() {
         <TextInput
           accessibilityLabel="Barcode number"
           keyboardType="number-pad"
-          placeholder="UPC, EAN, or GTIN"
+          placeholder="EAN or UPC"
           placeholderTextColor={colors.textSecondary}
           value={manualBarcode}
           onChangeText={setManualBarcode}
           onSubmitEditing={() => void resolveBarcode(manualBarcode)}
           style={[typography.body, { color: colors.textPrimary, borderColor: colors.border, borderWidth: 1, borderRadius: 12, padding: 12 }]}
         />
-        <ActionButton label={resolving ? 'Looking up…' : 'Look up barcode'} onPress={() => void resolveBarcode(manualBarcode)} disabled={!lookup || resolving || !manualBarcode.trim()} />
+        <ActionButton
+          label={resolving ? 'Checking sources…' : 'Look up barcode'}
+          onPress={() => void resolveBarcode(manualBarcode)}
+          disabled={!service || resolving || !manualBarcode.trim()}
+        />
       </Surface>
 
-      {found ? (
+      {resolving ? (
         <Surface tone="muted">
-          <Text allowFontScaling selectable style={[typography.title3, { color: colors.textPrimary }]}>{found.food.name}</Text>
-          {found.food.brand ? <Text allowFontScaling selectable style={[typography.body, { color: colors.textSecondary }]}>{found.food.brand}</Text> : null}
-          <Text allowFontScaling selectable style={[typography.caption, { color: colors.textSecondary }]}>Source: {found.food.primarySource?.provider ?? found.sourceId}</Text>
-          {found.food.servings.filter((serving) => serving.gramWeight !== undefined).map((serving) => (
-            <ActionButton key={serving.id} label={`${serving.label} · ${Math.round(serving.gramWeight ?? 0)} g`} tone="secondary" onPress={() => setGrams(String(serving.gramWeight))} />
+          <Text accessibilityLiveRegion="polite" allowFontScaling selectable style={[typography.body, { color: colors.textSecondary }]}>Checking each enabled source…</Text>
+        </Surface>
+      ) : null}
+
+      {resolution ? (
+        <View style={{ gap: spacing.sm }}>
+          <Text allowFontScaling style={[typography.title3, { color: colors.textPrimary }]}>Source results</Text>
+          {resolution.sources.length === 0 ? (
+            <Surface>
+              <Text allowFontScaling selectable style={[typography.body, { color: colors.textSecondary }]}>No enabled source currently supports barcode lookup.</Text>
+            </Surface>
+          ) : null}
+          {resolution.sources.map((outcome) => (
+            <Surface key={outcome.sourceId} tone={outcome.state === 'found' ? 'muted' : 'default'}>
+              <Text allowFontScaling style={[typography.bodyStrong, { color: colors.textPrimary }]}>{sourceNames[outcome.sourceId]}</Text>
+              {outcome.state === 'found' ? (
+                <>
+                  <Text allowFontScaling selectable style={[typography.title3, { color: colors.textPrimary }]}>{outcome.candidate.food.name}</Text>
+                  {outcome.candidate.food.brand ? <Text allowFontScaling selectable style={[typography.body, { color: colors.textSecondary }]}>{outcome.candidate.food.brand}</Text> : null}
+                  <Text allowFontScaling selectable style={[typography.caption, { color: colors.textSecondary }]}>{freshnessText(outcome)}</Text>
+                  {outcome.issue ? <Text accessibilityLiveRegion="polite" allowFontScaling selectable style={[typography.caption, { color: colors.textSecondary }]}>{outcome.issue.message}</Text> : null}
+                  <ActionButton
+                    label={selected && candidateKey(selected) === candidateKey(outcome.candidate) ? 'Selected' : 'Use this result'}
+                    tone="secondary"
+                    onPress={() => chooseCandidate(outcome.candidate)}
+                  />
+                </>
+              ) : outcome.state === 'empty' ? (
+                <Text allowFontScaling selectable style={[typography.caption, { color: colors.textSecondary }]}>No matching product in this source.</Text>
+              ) : (
+                <Text accessibilityLiveRegion="polite" allowFontScaling selectable style={[typography.caption, { color: colors.destructive }]}>{outcome.issue.message}</Text>
+              )}
+            </Surface>
+          ))}
+        </View>
+      ) : null}
+
+      {selected ? (
+        <Surface>
+          <Text allowFontScaling style={[typography.bodyStrong, { color: colors.textPrimary }]}>Portion for {selected.food.name}</Text>
+          {selected.portions.filter((portion) => portion.gramWeight !== undefined).map((portion) => (
+            <ActionButton
+              key={portion.id}
+              label={`${portion.label} · ${Math.round(portion.gramWeight ?? 0)} g`}
+              tone="secondary"
+              onPress={() => setGrams(String(portion.gramWeight))}
+            />
           ))}
           <ActionButton label="100 g" tone="secondary" onPress={() => setGrams('100')} />
           <TextInput
@@ -162,35 +318,28 @@ export default function ScanBarcodeScreen() {
             onChangeText={setGrams}
             style={[typography.body, { color: colors.textPrimary, borderColor: colors.border, borderWidth: 1, borderRadius: 12, padding: 12 }]}
           />
-          <ActionButton label="Log food" onPress={() => void logResolvedFood()} disabled={!logging} />
-          <ActionButton label="Scan another" tone="secondary" onPress={() => setResolution(null)} />
+          <ActionButton
+            label={logging ? 'Saving and logging…' : 'Log food'}
+            onPress={() => void persistAndLog()}
+            disabled={logging}
+          />
         </Surface>
       ) : null}
 
-      {resolution?.status === 'not-found' ? (
+      {resolution?.status === 'unavailable' ? (
         <Surface>
-          <Text allowFontScaling style={[typography.bodyStrong, { color: colors.textPrimary }]}>Product not found</Text>
-          <Text allowFontScaling selectable style={[typography.body, { color: colors.textSecondary }]}>The barcode was not found in your local data or enabled free/open sources. Keep the barcode attached while creating the product so future scans resolve locally.</Text>
-          <Link href={{ pathname: '/manual-food', params: { barcode: resolution.barcode } }} asChild>
-            <ActionButton label="Create product manually" />
-          </Link>
-          <ActionButton label="Scan nutrition label" tone="secondary" disabled onPress={() => undefined} />
-          <Text allowFontScaling selectable style={[typography.caption, { color: colors.textSecondary }]}>On-device nutrition-label OCR plugs into this fallback in its dedicated implementation; manual creation is available now.</Text>
-          <ActionButton label="Try another barcode" tone="secondary" onPress={() => setResolution(null)} />
-        </Surface>
-      ) : null}
-
-      {resolution?.status === 'offline' ? (
-        <Surface>
-          <Text allowFontScaling style={[typography.bodyStrong, { color: colors.textPrimary }]}>Network unavailable</Text>
-          <Text allowFontScaling selectable style={[typography.body, { color: colors.textSecondary }]}>No local match was found and the enabled external source could not be reached. You can retry or create the product manually; cached products remain available offline.</Text>
+          <Text allowFontScaling style={[typography.bodyStrong, { color: colors.textPrimary }]}>Some sources could not be checked</Text>
+          <Text allowFontScaling selectable style={[typography.body, { color: colors.textSecondary }]}>A source outage is not treated as a confirmed unknown product. Retry when convenient or create the food manually with this barcode attached.</Text>
           <ActionButton label="Retry lookup" onPress={() => void resolveBarcode(resolution.barcode)} disabled={resolving} />
-          <Link href={{ pathname: '/manual-food', params: { barcode: resolution.barcode } }} asChild>
-            <ActionButton label="Create product manually" tone="secondary" />
-          </Link>
+          <ActionButton
+            label="Create product manually"
+            tone="secondary"
+            onPress={() => router.push({ pathname: '/manual-food', params: { barcode: resolution.barcode } })}
+          />
         </Surface>
       ) : null}
 
+      {resolution ? <ActionButton label="Scan another" tone="secondary" onPress={scanAnother} /> : null}
       {message ? <Text accessibilityLiveRegion="assertive" allowFontScaling selectable style={[typography.body, { color: colors.destructive }]}>{message}</Text> : null}
     </ScrollView>
   );

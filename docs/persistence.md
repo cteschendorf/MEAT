@@ -1,21 +1,33 @@
 # Local persistence
 
-MEAT private tracking is local-first and uses Expo SQLite.
+MEAT is local-first and uses Expo SQLite. Private tracking and provider data are separated by purpose and license.
 
-## Rules
+## Active stores
 
-- Database initialization enables WAL mode and foreign keys.
+| Store | Contents | Access model |
+| --- | --- | --- |
+| `meat.db` | Personal foods, meals, goals, recipes, saved meals, preferences, favorites, and known provider references | Private and writable |
+| `meat-usda-core.sqlite` | Pinned USDA Foundation/FNDDS/SR Legacy foods, nutrients, portions, and FTS index | Bundled and query-only |
+| `usda-fdc-cache.db` | USDA online search/detail responses | Provider-scoped writable cache |
+| `open-food-facts-cache.db` | Open Food Facts search/product responses | Provider-scoped writable ODbL cache |
+
+The private database stores the user's own data and source-scoped references such as `usda-core:321358`; it is not a combined provider database. Provider payloads stay in their source asset or cache. Records from different providers are never merged merely because names, barcodes, or upstream IDs match.
+
+## Database rules
+
+- Private database initialization enables WAL mode and foreign keys.
 - Schema changes are applied through ordered migrations recorded in `schema_migrations`.
-- Migrations must preserve user data; destructive reset is not a migration strategy.
+- Migrations preserve user data; destructive reset is not a migration strategy.
 - UI code depends on repository contracts rather than SQLite directly.
-- Normal private food tracking must function without Supabase or network access.
+- Normal private tracking works without Supabase or network access.
 - Multi-record writes that must remain consistent use SQLite transactions.
-- Export and deletion hooks are part of the persistence contract from the beginning.
+- User-controlled values are always bound through SQLite parameters.
+- `execAsync` is reserved for static migration and maintenance SQL.
 
-## Current schema
+The bundled USDA core is opened query-only. Provider-cache entries record freshness and retain an expired payload so the discovery layer can use a clearly identified stale result during an outage. A provider cache does not write into `meat.db` except when a user action records a stable provider reference in private history or favorites.
 
-The initial private tracking schema stores canonical JSON payloads for foods, meals, recipes, and goals, with indexed meal timestamps. Later food-corpus/search work may introduce normalized/index tables optimized for lookup without requiring the private canonical records to mirror a future server schema.
+## Privacy, export, and secrets
 
-## Security
+Private export and deletion operate on the user's private store without rewriting provider assets or combining provider caches. Export/delete hooks remain part of the persistence contract.
 
-All user-controlled values must be bound through SQLite parameters. `execAsync` is reserved for static migration/maintenance SQL and must not interpolate user data.
+The FoodData Central API secret is never stored in SQLite. It exists only as the Cloudflare Worker secret `USDA_FDC_API_KEY`. The app may contain the public proxy base URL (or a public override), but never the upstream API key.

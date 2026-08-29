@@ -20,7 +20,7 @@ export interface Food {
   brand?: string;
   barcode?: string;
   nutrition: NutritionFacts;
-  servings: ReadonlyArray<FoodServing>;
+  servings: readonly FoodServing[];
   primarySource?: NutritionSource;
   createdAt: ISODateTime;
   updatedAt: ISODateTime;
