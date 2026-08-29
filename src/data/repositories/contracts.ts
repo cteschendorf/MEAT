@@ -1,5 +1,5 @@
-import type { Food, Meal, NutritionGoal, Recipe, UserPreferences } from '@/domain';
-import type { FoodId, MealId, RecipeId } from '@/domain/shared/ids';
+import type { Food, Meal, NutritionGoal, Recipe, SavedMeal, UserPreferences } from '@/domain';
+import type { FoodId, MealId, RecipeId, SavedMealId } from '@/domain/shared/ids';
 
 export interface FoodRepository {
   getById(id: FoodId): Promise<Food | null>;
@@ -13,6 +13,13 @@ export interface MealRepository {
   save(meal: Meal): Promise<void>;
   delete(id: MealId): Promise<void>;
   listByDateRange(start: string, end: string): Promise<readonly Meal[]>;
+}
+
+export interface SavedMealRepository {
+  getById(id: SavedMealId): Promise<SavedMeal | null>;
+  save(savedMeal: SavedMeal): Promise<void>;
+  delete(id: SavedMealId): Promise<void>;
+  list(): Promise<readonly SavedMeal[]>;
 }
 
 export interface RecipeRepository {
