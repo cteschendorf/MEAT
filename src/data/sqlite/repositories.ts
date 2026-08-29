@@ -1,6 +1,6 @@
 import type { SQLiteDatabase } from 'expo-sqlite';
 
-import type { Food, Meal, NutritionGoal, Recipe } from '@/domain';
+import type { Food, Meal, NutritionGoal, Recipe, UserPreferences } from '@/domain';
 import type { FoodId, MealId, RecipeId } from '@/domain/shared/ids';
 import type {
   FavoriteFoodRepository,
@@ -9,10 +9,12 @@ import type {
   MealRepository,
   PrivateDataRepository,
   RecipeRepository,
+  UserPreferencesRepository,
 } from '@/data/repositories/contracts';
 
 type PayloadRow = { payload: string };
 type FavoriteRow = { food_id: FoodId; updated_at: string };
+type PreferencesRow = { payload: string; onboarding_completed: number; updated_at: string };
 
 function parsePayload<T>(row: PayloadRow | null): T | null {
   return row ? (JSON.parse(row.payload) as T) : null;
@@ -158,16 +160,53 @@ export class SqliteFavoriteFoodRepository implements FavoriteFoodRepository {
   }
 }
 
+export class SqliteUserPreferencesRepository implements UserPreferencesRepository {
+  constructor(private readonly db: SQLiteDatabase) {}
+
+  async get(): Promise<UserPreferences | null> {
+    return parsePayload<UserPreferences>(
+      await this.db.getFirstAsync<PayloadRow>('SELECT payload FROM user_preferences WHERE singleton_id = 1'),
+    );
+  }
+
+  async save(preferences: UserPreferences, updatedAt: string): Promise<void> {
+    await this.db.runAsync(
+      `INSERT INTO user_preferences (singleton_id, payload, onboarding_completed, updated_at)
+       VALUES (1, ?, 0, ?)
+       ON CONFLICT(singleton_id) DO UPDATE SET payload = excluded.payload, updated_at = excluded.updated_at`,
+      JSON.stringify(preferences),
+      updatedAt,
+    );
+  }
+
+  async isOnboardingComplete(): Promise<boolean> {
+    const row = await this.db.getFirstAsync<PreferencesRow>(
+      'SELECT payload, onboarding_completed, updated_at FROM user_preferences WHERE singleton_id = 1',
+    );
+    return row?.onboarding_completed === 1;
+  }
+
+  async markOnboardingComplete(updatedAt: string): Promise<void> {
+    await this.db.runAsync(
+      'UPDATE user_preferences SET onboarding_completed = 1, updated_at = ? WHERE singleton_id = 1',
+      updatedAt,
+    );
+  }
+}
+
 export class SqlitePrivateDataRepository implements PrivateDataRepository {
   constructor(private readonly db: SQLiteDatabase) {}
 
   async exportJson(): Promise<string> {
-    const [foods, meals, recipes, goals, favoriteFoods] = await Promise.all([
+    const [foods, meals, recipes, goals, favoriteFoods, preferences] = await Promise.all([
       this.db.getAllAsync<PayloadRow>('SELECT payload FROM foods'),
       this.db.getAllAsync<PayloadRow>('SELECT payload FROM meals'),
       this.db.getAllAsync<PayloadRow>('SELECT payload FROM recipes'),
       this.db.getAllAsync<PayloadRow>('SELECT payload FROM goals'),
       this.db.getAllAsync<FavoriteRow>('SELECT food_id, updated_at FROM favorite_foods ORDER BY updated_at DESC'),
+      this.db.getFirstAsync<PreferencesRow>(
+        'SELECT payload, onboarding_completed, updated_at FROM user_preferences WHERE singleton_id = 1',
+      ),
     ]);
 
     return JSON.stringify({
@@ -176,13 +215,20 @@ export class SqlitePrivateDataRepository implements PrivateDataRepository {
       recipes: recipes.map((row) => JSON.parse(row.payload)),
       goals: goals.map((row) => JSON.parse(row.payload)),
       favoriteFoods,
+      preferences: preferences
+        ? {
+            value: JSON.parse(preferences.payload),
+            onboardingCompleted: preferences.onboarding_completed === 1,
+            updatedAt: preferences.updated_at,
+          }
+        : null,
     });
   }
 
   async deleteAllPrivateData(): Promise<void> {
     await this.db.withTransactionAsync(async () => {
       await this.db.execAsync(
-        'DELETE FROM favorite_foods; DELETE FROM meals; DELETE FROM recipes; DELETE FROM goals; DELETE FROM foods;',
+        'DELETE FROM favorite_foods; DELETE FROM meals; DELETE FROM recipes; DELETE FROM goals; DELETE FROM foods; DELETE FROM user_preferences;',
       );
     });
   }

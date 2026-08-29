@@ -1,4 +1,4 @@
-import type { Food, Meal, NutritionGoal, Recipe } from '@/domain';
+import type { Food, Meal, NutritionGoal, Recipe, UserPreferences } from '@/domain';
 import type { FoodId, MealId, RecipeId } from '@/domain/shared/ids';
 
 export interface FoodRepository {
@@ -30,6 +30,13 @@ export interface GoalRepository {
 export interface FavoriteFoodRepository {
   listFavoriteIds(): Promise<readonly FoodId[]>;
   setFavorite(foodId: FoodId, favorite: boolean, updatedAt: string): Promise<void>;
+}
+
+export interface UserPreferencesRepository {
+  get(): Promise<UserPreferences | null>;
+  save(preferences: UserPreferences, updatedAt: string): Promise<void>;
+  isOnboardingComplete(): Promise<boolean>;
+  markOnboardingComplete(updatedAt: string): Promise<void>;
 }
 
 export interface PrivateDataRepository {

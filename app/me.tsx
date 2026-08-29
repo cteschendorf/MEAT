@@ -9,7 +9,14 @@ export default function MeScreen() {
 
   return (
     <ShellScreen title="Me">
-      <Text allowFontScaling selectable style={[typography.body, { color: colors.textSecondary, marginBottom: spacing.md }]}>Profile, goals, privacy, and tracking preferences live here.</Text>
+      <Text
+        allowFontScaling
+        selectable
+        style={[typography.body, { color: colors.textSecondary, marginBottom: spacing.md }]}
+      >
+        Profile, goals, privacy, and tracking preferences live here.
+      </Text>
+      <ActionButton label="Goals & units" tone="secondary" onPress={() => router.push('/onboarding')} />
       <ActionButton label="Food data sources" tone="secondary" onPress={() => router.push('/data-sources')} />
     </ShellScreen>
   );

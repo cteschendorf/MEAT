@@ -111,6 +111,20 @@ const migrations: readonly Migration[] = [
       `);
     },
   },
+  {
+    version: 6,
+    name: 'user-preferences-and-onboarding',
+    async up(db) {
+      await db.execAsync(`
+        CREATE TABLE IF NOT EXISTS user_preferences (
+          singleton_id INTEGER PRIMARY KEY NOT NULL CHECK (singleton_id = 1),
+          payload TEXT NOT NULL,
+          onboarding_completed INTEGER NOT NULL DEFAULT 0 CHECK (onboarding_completed IN (0, 1)),
+          updated_at TEXT NOT NULL
+        );
+      `);
+    },
+  },
 ];
 
 export async function migrateDatabase(db: SQLiteDatabase): Promise<void> {
