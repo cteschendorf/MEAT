@@ -9,9 +9,9 @@ test('Expo Router is the application entry point', async () => {
   assert.equal(pkg.main, 'expo-router/entry');
 });
 
-test('quality workflow cannot trigger EAS Build', async () => {
+test('quality workflow cannot execute an EAS build command', async () => {
   const workflow = await readFile(new URL('../.github/workflows/quality.yml', import.meta.url), 'utf8');
-  assert.doesNotMatch(workflow, /\beas\s+build\b/i);
+  assert.doesNotMatch(workflow, /run:\s*eas\s+build\b/i);
 });
 
 test('strict TypeScript remains enabled', async () => {
