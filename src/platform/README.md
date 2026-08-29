@@ -1,0 +1,1 @@
+Platform-specific implementations belong here and must satisfy platform-neutral contracts defined elsewhere. Apple APIs may be used deeply, but Apple framework types must not leak into the domain layer.
