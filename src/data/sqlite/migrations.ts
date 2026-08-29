@@ -37,6 +37,34 @@ const migrations: ReadonlyArray<Migration> = [
       `);
     },
   },
+  {
+    version: 2,
+    name: 'local-food-search-corpus',
+    async up(db) {
+      await db.execAsync(`
+        CREATE TABLE IF NOT EXISTS food_corpus (
+          id TEXT PRIMARY KEY NOT NULL,
+          source TEXT NOT NULL,
+          source_id TEXT NOT NULL,
+          data_type TEXT NOT NULL,
+          name TEXT NOT NULL,
+          brand TEXT,
+          gtin TEXT,
+          popularity REAL NOT NULL DEFAULT 0,
+          payload TEXT NOT NULL
+        );
+        CREATE UNIQUE INDEX IF NOT EXISTS food_corpus_source_record_idx
+          ON food_corpus (source, source_id);
+        CREATE INDEX IF NOT EXISTS food_corpus_gtin_idx ON food_corpus (gtin) WHERE gtin IS NOT NULL;
+        CREATE VIRTUAL TABLE IF NOT EXISTS food_corpus_fts USING fts5(
+          id UNINDEXED,
+          name,
+          brand,
+          tokenize = 'unicode61 remove_diacritics 2'
+        );
+      `);
+    },
+  },
 ];
 
 export async function migrateDatabase(db: SQLiteDatabase): Promise<void> {
