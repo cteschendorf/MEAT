@@ -1,0 +1,8 @@
+import assert from 'node:assert/strict';import test from'node:test';
+import type{Food,Meal}from'../src/domain';import type{FoodRepository,MealRepository}from'../src/data/repositories/contracts';import type{LocalFoodCorpus}from'../src/data/food-data/local-corpus';import type{ISODateTime}from'../src/domain/shared/ids';import{FoodLoggingService}from'../src/services/logging/food-logging';
+const foods:Food[]=[];const meals:Meal[]=[];
+const foodRepo:FoodRepository={async getById(id){return foods.find(f=>f.id===id)??null},async save(f){foods.push(f)},async delete(){},async list(){return foods}};
+const mealRepo:MealRepository={async getById(id){return meals.find(m=>m.id===id)??null},async save(m){meals.push(m)},async delete(id){const i=meals.findIndex(m=>m.id===id);if(i>=0)meals.splice(i,1)},async listByDateRange(){return meals}};
+const corpus={async search(){return[]}} as unknown as LocalFoodCorpus;let i=0;const service=new FoodLoggingService(corpus,foodRepo,mealRepo,(p)=>`${p}:${++i}`);const now='2026-08-29T00:00:00.000Z' as ISODateTime;
+test('manual food preserves blank nutrient as unknown and explicit zero as known',async()=>{const f=await service.createManualFood({name:'Test',servingGrams:50,calories:0,protein:10},now);assert.equal(f.nutrition.nutrients.find(n=>n.nutrient.code==='energy-kcal')?.state,'known');assert.equal(f.nutrition.nutrients.find(n=>n.nutrient.code==='energy-kcal')?.value,0);assert.equal(f.nutrition.nutrients.find(n=>n.nutrient.code==='fiber-g')?.state,'unknown')});
+test('logging writes a persisted meal with gram portion',async()=>{const f=foods[0];assert.ok(f);const meal=await service.logFood(f,125,now);assert.equal(meal.items[0]?.portion.gramWeight,125);assert.equal(meals.at(-1)?.id,meal.id)});
