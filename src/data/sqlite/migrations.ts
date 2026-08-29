@@ -6,7 +6,7 @@ export interface Migration {
   up: (db: SQLiteDatabase) => Promise<void>;
 }
 
-const migrations: ReadonlyArray<Migration> = [
+const migrations: readonly Migration[] = [
   {
     version: 1,
     name: 'initial-private-tracking-schema',
@@ -96,6 +96,18 @@ const migrations: ReadonlyArray<Migration> = [
         );
         INSERT OR IGNORE INTO food_source_preferences (source_id, enabled, priority)
           VALUES ('personal', 1, 0), ('usda-local', 1, 10), ('usda-fdc', 1, 20), ('open-food-facts', 1, 30);
+      `);
+    },
+  },
+  {
+    version: 5,
+    name: 'favorite-foods',
+    async up(db) {
+      await db.execAsync(`
+        CREATE TABLE IF NOT EXISTS favorite_foods (
+          food_id TEXT PRIMARY KEY NOT NULL REFERENCES foods(id) ON DELETE CASCADE,
+          updated_at TEXT NOT NULL
+        );
       `);
     },
   },

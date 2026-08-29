@@ -3,6 +3,7 @@ import type { SQLiteDatabase } from 'expo-sqlite';
 import type { Food, Meal, NutritionGoal, Recipe } from '@/domain';
 import type { FoodId, MealId, RecipeId } from '@/domain/shared/ids';
 import type {
+  FavoriteFoodRepository,
   FoodRepository,
   GoalRepository,
   MealRepository,
@@ -11,6 +12,7 @@ import type {
 } from '@/data/repositories/contracts';
 
 type PayloadRow = { payload: string };
+type FavoriteRow = { food_id: FoodId; updated_at: string };
 
 function parsePayload<T>(row: PayloadRow | null): T | null {
   return row ? (JSON.parse(row.payload) as T) : null;
@@ -37,7 +39,7 @@ export class SqliteFoodRepository implements FoodRepository {
     await this.db.runAsync('DELETE FROM foods WHERE id = ?', id);
   }
 
-  async list(limit = 100): Promise<ReadonlyArray<Food>> {
+  async list(limit = 100): Promise<readonly Food[]> {
     const rows = await this.db.getAllAsync<PayloadRow>('SELECT payload FROM foods ORDER BY updated_at DESC LIMIT ?', limit);
     return rows.map((row) => JSON.parse(row.payload) as Food);
   }
@@ -65,11 +67,19 @@ export class SqliteMealRepository implements MealRepository {
     await this.db.runAsync('DELETE FROM meals WHERE id = ?', id);
   }
 
-  async listByDateRange(start: string, end: string): Promise<ReadonlyArray<Meal>> {
+  async listByDateRange(start: string, end: string): Promise<readonly Meal[]> {
     const rows = await this.db.getAllAsync<PayloadRow>(
       'SELECT payload FROM meals WHERE occurred_at >= ? AND occurred_at < ? ORDER BY occurred_at DESC',
       start,
       end,
+    );
+    return rows.map((row) => JSON.parse(row.payload) as Meal);
+  }
+
+  async listRecent(limit = 250): Promise<readonly Meal[]> {
+    const rows = await this.db.getAllAsync<PayloadRow>(
+      'SELECT payload FROM meals ORDER BY occurred_at DESC LIMIT ?',
+      limit,
     );
     return rows.map((row) => JSON.parse(row.payload) as Meal);
   }
@@ -96,7 +106,7 @@ export class SqliteRecipeRepository implements RecipeRepository {
     await this.db.runAsync('DELETE FROM recipes WHERE id = ?', id);
   }
 
-  async list(): Promise<ReadonlyArray<Recipe>> {
+  async list(): Promise<readonly Recipe[]> {
     const rows = await this.db.getAllAsync<PayloadRow>('SELECT payload FROM recipes ORDER BY updated_at DESC');
     return rows.map((row) => JSON.parse(row.payload) as Recipe);
   }
@@ -115,7 +125,7 @@ export class SqliteGoalRepository implements GoalRepository {
     );
   }
 
-  async listActive(at: string): Promise<ReadonlyArray<NutritionGoal>> {
+  async listActive(at: string): Promise<readonly NutritionGoal[]> {
     const rows = await this.db.getAllAsync<PayloadRow>('SELECT payload FROM goals ORDER BY updated_at DESC');
     return rows
       .map((row) => JSON.parse(row.payload) as NutritionGoal)
@@ -123,15 +133,41 @@ export class SqliteGoalRepository implements GoalRepository {
   }
 }
 
+export class SqliteFavoriteFoodRepository implements FavoriteFoodRepository {
+  constructor(private readonly db: SQLiteDatabase) {}
+
+  async listFavoriteIds(): Promise<readonly FoodId[]> {
+    const rows = await this.db.getAllAsync<FavoriteRow>(
+      'SELECT food_id, updated_at FROM favorite_foods ORDER BY updated_at DESC, food_id ASC',
+    );
+    return rows.map((row) => row.food_id);
+  }
+
+  async setFavorite(foodId: FoodId, favorite: boolean, updatedAt: string): Promise<void> {
+    if (!favorite) {
+      await this.db.runAsync('DELETE FROM favorite_foods WHERE food_id = ?', foodId);
+      return;
+    }
+
+    await this.db.runAsync(
+      `INSERT INTO favorite_foods (food_id, updated_at) VALUES (?, ?)
+       ON CONFLICT(food_id) DO UPDATE SET updated_at = excluded.updated_at`,
+      foodId,
+      updatedAt,
+    );
+  }
+}
+
 export class SqlitePrivateDataRepository implements PrivateDataRepository {
   constructor(private readonly db: SQLiteDatabase) {}
 
   async exportJson(): Promise<string> {
-    const [foods, meals, recipes, goals] = await Promise.all([
+    const [foods, meals, recipes, goals, favoriteFoods] = await Promise.all([
       this.db.getAllAsync<PayloadRow>('SELECT payload FROM foods'),
       this.db.getAllAsync<PayloadRow>('SELECT payload FROM meals'),
       this.db.getAllAsync<PayloadRow>('SELECT payload FROM recipes'),
       this.db.getAllAsync<PayloadRow>('SELECT payload FROM goals'),
+      this.db.getAllAsync<FavoriteRow>('SELECT food_id, updated_at FROM favorite_foods ORDER BY updated_at DESC'),
     ]);
 
     return JSON.stringify({
@@ -139,12 +175,15 @@ export class SqlitePrivateDataRepository implements PrivateDataRepository {
       meals: meals.map((row) => JSON.parse(row.payload)),
       recipes: recipes.map((row) => JSON.parse(row.payload)),
       goals: goals.map((row) => JSON.parse(row.payload)),
+      favoriteFoods,
     });
   }
 
   async deleteAllPrivateData(): Promise<void> {
     await this.db.withTransactionAsync(async () => {
-      await this.db.execAsync('DELETE FROM meals; DELETE FROM recipes; DELETE FROM goals; DELETE FROM foods;');
+      await this.db.execAsync(
+        'DELETE FROM favorite_foods; DELETE FROM meals; DELETE FROM recipes; DELETE FROM goals; DELETE FROM foods;',
+      );
     });
   }
 }
