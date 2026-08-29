@@ -4,6 +4,7 @@ export type FoodId = Brand<string, 'FoodId'>;
 export type FoodServingId = Brand<string, 'FoodServingId'>;
 export type MealId = Brand<string, 'MealId'>;
 export type MealItemId = Brand<string, 'MealItemId'>;
+export type SavedMealId = Brand<string, 'SavedMealId'>;
 export type RecipeId = Brand<string, 'RecipeId'>;
 export type GoalId = Brand<string, 'GoalId'>;
 export type MediaId = Brand<string, 'MediaId'>;

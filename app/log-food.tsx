@@ -183,6 +183,9 @@ export default function LogFoodScreen() {
           style={[typography.body, { color: colors.textPrimary, borderColor: colors.border, borderWidth: 1, borderRadius: 12, padding: 12 }]}
         />
         <ActionButton label="Search" onPress={() => void search()} disabled={!loggingService || !query.trim()} />
+        <Link href="/meals-recipes" asChild>
+          <ActionButton label="Saved meals & recipes" tone="secondary" />
+        </Link>
         <Link href="/scan-barcode" asChild>
           <ActionButton label="Scan packaged food" tone="secondary" />
         </Link>

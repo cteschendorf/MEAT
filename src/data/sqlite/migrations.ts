@@ -125,6 +125,20 @@ const migrations: readonly Migration[] = [
       `);
     },
   },
+  {
+    version: 7,
+    name: 'saved-meal-templates',
+    async up(db) {
+      await db.execAsync(`
+        CREATE TABLE IF NOT EXISTS saved_meals (
+          id TEXT PRIMARY KEY NOT NULL,
+          payload TEXT NOT NULL,
+          updated_at TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS saved_meals_updated_at_idx ON saved_meals (updated_at DESC);
+      `);
+    },
+  },
 ];
 
 export async function migrateDatabase(db: SQLiteDatabase): Promise<void> {
