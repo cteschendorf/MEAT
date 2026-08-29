@@ -156,29 +156,16 @@ export default function LogFoodScreen() {
           <Text allowFontScaling style={[typography.title3, { color: colors.textPrimary }]}>Quick log</Text>
           {suggestions.map((suggestion) => (
             <Surface key={suggestion.food.id}>
-              <Text allowFontScaling selectable style={[typography.bodyStrong, { color: colors.textPrimary }]}>
-                {suggestion.food.name}
-              </Text>
+              <Text allowFontScaling selectable style={[typography.bodyStrong, { color: colors.textPrimary }]}>{suggestion.food.name}</Text>
               <Text allowFontScaling selectable style={[typography.caption, { color: colors.textSecondary }]}>
                 {suggestion.favorite ? 'Favorite · ' : ''}
                 {suggestion.logCount > 0
                   ? `${suggestion.logCount} log${suggestion.logCount === 1 ? '' : 's'} · ${Math.round(suggestion.suggestedGramWeight)} g last portion`
                   : 'Saved favorite'}
               </Text>
-              <ActionButton
-                label={`Log ${Math.round(suggestion.suggestedGramWeight)} g`}
-                onPress={() => void quickLog(suggestion)}
-              />
-              <ActionButton
-                label="Adjust portion"
-                tone="secondary"
-                onPress={() => selectFood(suggestion.food, suggestion.suggestedGramWeight)}
-              />
-              <ActionButton
-                label={suggestion.favorite ? 'Remove favorite' : 'Favorite'}
-                tone="secondary"
-                onPress={() => void toggleFavorite(suggestion.food)}
-              />
+              <ActionButton label={`Log ${Math.round(suggestion.suggestedGramWeight)} g`} onPress={() => void quickLog(suggestion)} />
+              <ActionButton label="Adjust portion" tone="secondary" onPress={() => selectFood(suggestion.food, suggestion.suggestedGramWeight)} />
+              <ActionButton label={suggestion.favorite ? 'Remove favorite' : 'Favorite'} tone="secondary" onPress={() => void toggleFavorite(suggestion.food)} />
             </Surface>
           ))}
         </View>
@@ -193,74 +180,38 @@ export default function LogFoodScreen() {
           onChangeText={setQuery}
           onSubmitEditing={() => void search()}
           returnKeyType="search"
-          style={[
-            typography.body,
-            {
-              color: colors.textPrimary,
-              borderColor: colors.border,
-              borderWidth: 1,
-              borderRadius: 12,
-              padding: 12,
-            },
-          ]}
+          style={[typography.body, { color: colors.textPrimary, borderColor: colors.border, borderWidth: 1, borderRadius: 12, padding: 12 }]}
         />
         <ActionButton label="Search" onPress={() => void search()} disabled={!loggingService || !query.trim()} />
+        <Link href="/scan-barcode" asChild>
+          <ActionButton label="Scan packaged food" tone="secondary" />
+        </Link>
         <Link href="/manual-food" asChild>
           <ActionButton label="Create a food manually" tone="secondary" />
         </Link>
       </Surface>
 
-      {message ? (
-        <Text accessibilityLiveRegion="polite" selectable style={[typography.body, { color: colors.destructive }]}>
-          {message}
-        </Text>
-      ) : null}
+      {message ? <Text accessibilityLiveRegion="polite" selectable style={[typography.body, { color: colors.destructive }]}>{message}</Text> : null}
 
       {results.map((food) => (
         <Surface key={food.id} tone={selected?.id === food.id ? 'muted' : 'default'}>
-          <Text allowFontScaling selectable style={[typography.bodyStrong, { color: colors.textPrimary }]}>
-            {food.name}
-          </Text>
-          {food.brand ? (
-            <Text allowFontScaling selectable style={[typography.caption, { color: colors.textSecondary }]}>
-              {food.brand}
-            </Text>
-          ) : null}
-          <ActionButton
-            label={selected?.id === food.id ? 'Selected' : 'Select'}
-            tone="secondary"
-            onPress={() => selectFood(food)}
-          />
-          <ActionButton
-            label={favoriteIds.has(food.id) ? 'Remove favorite' : 'Favorite'}
-            tone="secondary"
-            onPress={() => void toggleFavorite(food)}
-          />
+          <Text allowFontScaling selectable style={[typography.bodyStrong, { color: colors.textPrimary }]}>{food.name}</Text>
+          {food.brand ? <Text allowFontScaling selectable style={[typography.caption, { color: colors.textSecondary }]}>{food.brand}</Text> : null}
+          <ActionButton label={selected?.id === food.id ? 'Selected' : 'Select'} tone="secondary" onPress={() => selectFood(food)} />
+          <ActionButton label={favoriteIds.has(food.id) ? 'Remove favorite' : 'Favorite'} tone="secondary" onPress={() => void toggleFavorite(food)} />
         </Surface>
       ))}
 
       {selected ? (
         <Surface>
-          <Text allowFontScaling style={[typography.bodyStrong, { color: colors.textPrimary }]}>
-            Portion for {selected.name}
-          </Text>
+          <Text allowFontScaling style={[typography.bodyStrong, { color: colors.textPrimary }]}>Portion for {selected.name}</Text>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
             <TextInput
               accessibilityLabel="Portion in grams"
               keyboardType="decimal-pad"
               value={grams}
               onChangeText={setGrams}
-              style={[
-                typography.body,
-                {
-                  flex: 1,
-                  color: colors.textPrimary,
-                  borderColor: colors.border,
-                  borderWidth: 1,
-                  borderRadius: 12,
-                  padding: 12,
-                },
-              ]}
+              style={[typography.body, { flex: 1, color: colors.textPrimary, borderColor: colors.border, borderWidth: 1, borderRadius: 12, padding: 12 }]}
             />
             <Text style={[typography.body, { color: colors.textSecondary }]}>g</Text>
           </View>
