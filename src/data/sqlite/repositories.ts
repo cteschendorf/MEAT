@@ -1,7 +1,7 @@
 import type { SQLiteDatabase } from 'expo-sqlite';
 
-import type { Food, Meal, NutritionGoal, Recipe, UserPreferences } from '@/domain';
-import type { FoodId, MealId, RecipeId } from '@/domain/shared/ids';
+import type { Food, Meal, NutritionGoal, Recipe, SavedMeal, UserPreferences } from '@/domain';
+import type { FoodId, MealId, RecipeId, SavedMealId } from '@/domain/shared/ids';
 import type {
   FavoriteFoodRepository,
   FoodRepository,
@@ -9,6 +9,7 @@ import type {
   MealRepository,
   PrivateDataRepository,
   RecipeRepository,
+  SavedMealRepository,
   UserPreferencesRepository,
 } from '@/data/repositories/contracts';
 
@@ -79,11 +80,37 @@ export class SqliteMealRepository implements MealRepository {
   }
 
   async listRecent(limit = 250): Promise<readonly Meal[]> {
-    const rows = await this.db.getAllAsync<PayloadRow>(
-      'SELECT payload FROM meals ORDER BY occurred_at DESC LIMIT ?',
-      limit,
-    );
+    const rows = await this.db.getAllAsync<PayloadRow>('SELECT payload FROM meals ORDER BY occurred_at DESC LIMIT ?', limit);
     return rows.map((row) => JSON.parse(row.payload) as Meal);
+  }
+}
+
+export class SqliteSavedMealRepository implements SavedMealRepository {
+  constructor(private readonly db: SQLiteDatabase) {}
+
+  async getById(id: SavedMealId): Promise<SavedMeal | null> {
+    return parsePayload<SavedMeal>(
+      await this.db.getFirstAsync<PayloadRow>('SELECT payload FROM saved_meals WHERE id = ?', id),
+    );
+  }
+
+  async save(savedMeal: SavedMeal): Promise<void> {
+    await this.db.runAsync(
+      `INSERT INTO saved_meals (id, payload, updated_at) VALUES (?, ?, ?)
+       ON CONFLICT(id) DO UPDATE SET payload = excluded.payload, updated_at = excluded.updated_at`,
+      savedMeal.id,
+      JSON.stringify(savedMeal),
+      savedMeal.updatedAt,
+    );
+  }
+
+  async delete(id: SavedMealId): Promise<void> {
+    await this.db.runAsync('DELETE FROM saved_meals WHERE id = ?', id);
+  }
+
+  async list(): Promise<readonly SavedMeal[]> {
+    const rows = await this.db.getAllAsync<PayloadRow>('SELECT payload FROM saved_meals ORDER BY updated_at DESC');
+    return rows.map((row) => JSON.parse(row.payload) as SavedMeal);
   }
 }
 
@@ -198,9 +225,10 @@ export class SqlitePrivateDataRepository implements PrivateDataRepository {
   constructor(private readonly db: SQLiteDatabase) {}
 
   async exportJson(): Promise<string> {
-    const [foods, meals, recipes, goals, favoriteFoods, preferences] = await Promise.all([
+    const [foods, meals, savedMeals, recipes, goals, favoriteFoods, preferences] = await Promise.all([
       this.db.getAllAsync<PayloadRow>('SELECT payload FROM foods'),
       this.db.getAllAsync<PayloadRow>('SELECT payload FROM meals'),
+      this.db.getAllAsync<PayloadRow>('SELECT payload FROM saved_meals'),
       this.db.getAllAsync<PayloadRow>('SELECT payload FROM recipes'),
       this.db.getAllAsync<PayloadRow>('SELECT payload FROM goals'),
       this.db.getAllAsync<FavoriteRow>('SELECT food_id, updated_at FROM favorite_foods ORDER BY updated_at DESC'),
@@ -212,6 +240,7 @@ export class SqlitePrivateDataRepository implements PrivateDataRepository {
     return JSON.stringify({
       foods: foods.map((row) => JSON.parse(row.payload)),
       meals: meals.map((row) => JSON.parse(row.payload)),
+      savedMeals: savedMeals.map((row) => JSON.parse(row.payload)),
       recipes: recipes.map((row) => JSON.parse(row.payload)),
       goals: goals.map((row) => JSON.parse(row.payload)),
       favoriteFoods,
@@ -228,7 +257,7 @@ export class SqlitePrivateDataRepository implements PrivateDataRepository {
   async deleteAllPrivateData(): Promise<void> {
     await this.db.withTransactionAsync(async () => {
       await this.db.execAsync(
-        'DELETE FROM favorite_foods; DELETE FROM meals; DELETE FROM recipes; DELETE FROM goals; DELETE FROM foods; DELETE FROM user_preferences;',
+        'DELETE FROM favorite_foods; DELETE FROM meals; DELETE FROM saved_meals; DELETE FROM recipes; DELETE FROM goals; DELETE FROM foods; DELETE FROM user_preferences;',
       );
     });
   }
