@@ -3,3 +3,4 @@ export type { ApplicationErrorCode } from '@/services/application-error';
 export * from '@/services/goals/engine';
 export * from '@/services/logging/food-logging';
 export * from '@/services/nutrition/engine';
+export * from '@/services/today/snapshot';
