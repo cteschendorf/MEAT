@@ -2,6 +2,7 @@ export * from '@/domain/food/food';
 export * from '@/domain/goals/goal';
 export * from '@/domain/history/daily-nutrition-summary';
 export * from '@/domain/meals/meal';
+export * from '@/domain/meals/saved-meal';
 export * from '@/domain/media/media';
 export * from '@/domain/nutrition/nutrients';
 export * from '@/domain/preferences/user-preferences';
