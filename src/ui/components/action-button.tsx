@@ -22,7 +22,7 @@ export function ActionButton({ label, icon, tone = 'primary', disabled, style, .
       accessibilityRole="button"
       accessibilityState={{ disabled: Boolean(disabled) }}
       disabled={disabled}
-      style={({ pressed }) => [
+      style={(state) => [
         {
           alignItems: 'center',
           backgroundColor,
@@ -32,11 +32,11 @@ export function ActionButton({ label, icon, tone = 'primary', disabled, style, .
           gap: spacing.xs,
           justifyContent: 'center',
           minHeight: minimumTouchTarget,
-          opacity: disabled ? 0.45 : pressed ? 0.75 : 1,
+          opacity: disabled ? 0.45 : state.pressed ? 0.75 : 1,
           paddingHorizontal: spacing.md,
           paddingVertical: spacing.sm,
         },
-        typeof style === 'function' ? style({ pressed }) : style,
+        typeof style === 'function' ? style(state) : style,
       ]}
     >
       {icon}
