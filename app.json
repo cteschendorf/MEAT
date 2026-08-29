@@ -10,7 +10,8 @@
     "plugins": ["expo-router"],
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "com.thingcorp.meat"
+      "bundleIdentifier": "com.thingcorp.meat",
+      "buildNumber": "1"
     },
     "android": {
       "package": "com.thingcorp.meat"
