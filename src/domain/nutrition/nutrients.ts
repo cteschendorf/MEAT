@@ -52,7 +52,9 @@ export function knownNutrientValue(
   value: number,
   source?: NutritionSource,
 ): NutrientValue {
-  return { nutrient, state: 'known', value, source };
+  return source
+    ? { nutrient, state: 'known', value, source }
+    : { nutrient, state: 'known', value };
 }
 
 export function unknownNutrientValue(nutrient: NutrientDefinition): NutrientValue {
