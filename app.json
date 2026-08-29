@@ -1,0 +1,25 @@
+{
+  "expo": {
+    "name": "MEAT",
+    "slug": "meat",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "scheme": "meat",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "plugins": ["expo-router"],
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.thingcorp.meat"
+    },
+    "android": {
+      "package": "com.thingcorp.meat"
+    },
+    "web": {
+      "bundler": "metro"
+    },
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}
