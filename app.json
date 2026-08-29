@@ -6,7 +6,6 @@
     "orientation": "portrait",
     "scheme": "meat",
     "userInterfaceStyle": "automatic",
-    "newArchEnabled": true,
     "plugins": ["expo-router"],
     "ios": {
       "supportsTablet": false,
