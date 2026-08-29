@@ -1,2 +1,11 @@
-// Framework-independent domain contracts live here.
-export {};
+export * from '@/domain/food/food';
+export * from '@/domain/goals/goal';
+export * from '@/domain/history/daily-nutrition-summary';
+export * from '@/domain/meals/meal';
+export * from '@/domain/media/media';
+export * from '@/domain/nutrition/nutrients';
+export * from '@/domain/preferences/user-preferences';
+export * from '@/domain/recipes/recipe';
+export * from '@/domain/schema/version';
+export * from '@/domain/shared/ids';
+export * from '@/domain/social/visibility';
