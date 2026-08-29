@@ -1,72 +1,13 @@
 import type { SQLiteDatabase } from 'expo-sqlite';
-
-export interface Migration {
-  version: number;
-  name: string;
-  up: (db: SQLiteDatabase) => Promise<void>;
-}
-
+export interface Migration { version:number; name:string; up:(db:SQLiteDatabase)=>Promise<void> }
 const migrations: ReadonlyArray<Migration> = [
-  {
-    version: 1,
-    name: 'initial-private-tracking-schema',
-    async up(db) {
-      await db.execAsync(`
-        CREATE TABLE IF NOT EXISTS foods (
-          id TEXT PRIMARY KEY NOT NULL,
-          payload TEXT NOT NULL,
-          updated_at TEXT NOT NULL
-        );
-        CREATE TABLE IF NOT EXISTS meals (
-          id TEXT PRIMARY KEY NOT NULL,
-          occurred_at TEXT NOT NULL,
-          payload TEXT NOT NULL,
-          updated_at TEXT NOT NULL
-        );
-        CREATE INDEX IF NOT EXISTS meals_occurred_at_idx ON meals (occurred_at DESC);
-        CREATE TABLE IF NOT EXISTS recipes (
-          id TEXT PRIMARY KEY NOT NULL,
-          payload TEXT NOT NULL,
-          updated_at TEXT NOT NULL
-        );
-        CREATE TABLE IF NOT EXISTS goals (
-          id TEXT PRIMARY KEY NOT NULL,
-          payload TEXT NOT NULL,
-          updated_at TEXT NOT NULL
-        );
-      `);
-    },
-  },
+ {version:1,name:'initial-private-tracking-schema',async up(db){await db.execAsync(`CREATE TABLE IF NOT EXISTS foods (id TEXT PRIMARY KEY NOT NULL,payload TEXT NOT NULL,updated_at TEXT NOT NULL);CREATE TABLE IF NOT EXISTS meals (id TEXT PRIMARY KEY NOT NULL,occurred_at TEXT NOT NULL,payload TEXT NOT NULL,updated_at TEXT NOT NULL);CREATE INDEX IF NOT EXISTS meals_occurred_at_idx ON meals (occurred_at DESC);CREATE TABLE IF NOT EXISTS recipes (id TEXT PRIMARY KEY NOT NULL,payload TEXT NOT NULL,updated_at TEXT NOT NULL);CREATE TABLE IF NOT EXISTS goals (id TEXT PRIMARY KEY NOT NULL,payload TEXT NOT NULL,updated_at TEXT NOT NULL);`)}},
+ {version:2,name:'local-food-search-corpus',async up(db){await db.execAsync(`CREATE TABLE IF NOT EXISTS food_corpus (id TEXT PRIMARY KEY NOT NULL,source TEXT NOT NULL,source_id TEXT NOT NULL,data_type TEXT NOT NULL,name TEXT NOT NULL,brand TEXT,gtin TEXT,popularity REAL NOT NULL DEFAULT 0,payload TEXT NOT NULL);CREATE UNIQUE INDEX IF NOT EXISTS food_corpus_source_record_idx ON food_corpus (source,source_id);CREATE INDEX IF NOT EXISTS food_corpus_gtin_idx ON food_corpus (gtin) WHERE gtin IS NOT NULL;CREATE VIRTUAL TABLE IF NOT EXISTS food_corpus_fts USING fts5(id UNINDEXED,name,brand,tokenize='unicode61 remove_diacritics 2');`)}}
 ];
-
-export async function migrateDatabase(db: SQLiteDatabase): Promise<void> {
-  await db.execAsync('PRAGMA journal_mode = WAL; PRAGMA foreign_keys = ON;');
-  await db.execAsync(`
-    CREATE TABLE IF NOT EXISTS schema_migrations (
-      version INTEGER PRIMARY KEY NOT NULL,
-      name TEXT NOT NULL,
-      applied_at TEXT NOT NULL
-    );
-  `);
-
-  const current = await db.getFirstAsync<{ version: number | null }>(
-    'SELECT MAX(version) AS version FROM schema_migrations',
-  );
-  const currentVersion = current?.version ?? 0;
-
-  for (const migration of migrations) {
-    if (migration.version <= currentVersion) continue;
-
-    await db.withTransactionAsync(async () => {
-      await migration.up(db);
-      await db.runAsync(
-        'INSERT INTO schema_migrations (version, name, applied_at) VALUES (?, ?, ?)',
-        migration.version,
-        migration.name,
-        new Date().toISOString(),
-      );
-    });
-  }
+export async function migrateDatabase(db:SQLiteDatabase):Promise<void>{
+ await db.execAsync('PRAGMA journal_mode = WAL; PRAGMA foreign_keys = ON;');
+ await db.execAsync(`CREATE TABLE IF NOT EXISTS schema_migrations (version INTEGER PRIMARY KEY NOT NULL,name TEXT NOT NULL,applied_at TEXT NOT NULL);`);
+ const current=await db.getFirstAsync<{version:number|null}>('SELECT MAX(version) AS version FROM schema_migrations'); const currentVersion=current?.version??0;
+ for(const migration of migrations){if(migration.version<=currentVersion)continue;await db.withTransactionAsync(async()=>{await migration.up(db);await db.runAsync('INSERT INTO schema_migrations (version, name, applied_at) VALUES (?, ?, ?)',migration.version,migration.name,new Date().toISOString())})}
 }
-
-export const latestMigrationVersion = migrations.at(-1)?.version ?? 0;
+export const latestMigrationVersion=migrations.at(-1)?.version??0;
