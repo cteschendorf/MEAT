@@ -18,10 +18,10 @@ jobs:
         with:
           node-version: 22
           cache: npm
-      - run: npm ci
+      - run: npm install --ignore-scripts
       - run: npm run typecheck
       - run: npm run lint
-      - run: npm test -- --runInBand
+      - run: npm test
 
 # IMPORTANT: This workflow intentionally contains no EAS Build step.
 # EAS builds require explicit user approval for each individual build.
