@@ -156,10 +156,10 @@ export default function LogFoodScreen() {
           <Text allowFontScaling style={[typography.title3, { color: colors.textPrimary }]}>Quick log</Text>
           {suggestions.map((suggestion) => (
             <Surface key={suggestion.food.id}>
-              <Text allowFontScaling selectable style={[typography.bodyStrong, { color: colors.textPrimary }]}> 
+              <Text allowFontScaling selectable style={[typography.bodyStrong, { color: colors.textPrimary }]}>
                 {suggestion.food.name}
               </Text>
-              <Text allowFontScaling selectable style={[typography.caption, { color: colors.textSecondary }]}> 
+              <Text allowFontScaling selectable style={[typography.caption, { color: colors.textSecondary }]}>
                 {suggestion.favorite ? 'Favorite · ' : ''}
                 {suggestion.logCount > 0
                   ? `${suggestion.logCount} log${suggestion.logCount === 1 ? '' : 's'} · ${Math.round(suggestion.suggestedGramWeight)} g last portion`
@@ -211,18 +211,18 @@ export default function LogFoodScreen() {
       </Surface>
 
       {message ? (
-        <Text accessibilityLiveRegion="polite" selectable style={[typography.body, { color: colors.destructive }]}> 
+        <Text accessibilityLiveRegion="polite" selectable style={[typography.body, { color: colors.destructive }]}>
           {message}
         </Text>
       ) : null}
 
       {results.map((food) => (
         <Surface key={food.id} tone={selected?.id === food.id ? 'muted' : 'default'}>
-          <Text allowFontScaling selectable style={[typography.bodyStrong, { color: colors.textPrimary }]}> 
+          <Text allowFontScaling selectable style={[typography.bodyStrong, { color: colors.textPrimary }]}>
             {food.name}
           </Text>
           {food.brand ? (
-            <Text allowFontScaling selectable style={[typography.caption, { color: colors.textSecondary }]}> 
+            <Text allowFontScaling selectable style={[typography.caption, { color: colors.textSecondary }]}>
               {food.brand}
             </Text>
           ) : null}
@@ -241,7 +241,7 @@ export default function LogFoodScreen() {
 
       {selected ? (
         <Surface>
-          <Text allowFontScaling style={[typography.bodyStrong, { color: colors.textPrimary }]}> 
+          <Text allowFontScaling style={[typography.bodyStrong, { color: colors.textPrimary }]}>
             Portion for {selected.name}
           </Text>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
