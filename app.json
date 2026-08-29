@@ -6,7 +6,17 @@
     "orientation": "portrait",
     "scheme": "meat",
     "userInterfaceStyle": "automatic",
-    "plugins": ["expo-router"],
+    "plugins": [
+      "expo-router",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Allow MEAT to use the camera to scan food barcodes.",
+          "recordAudioAndroid": false,
+          "barcodeScannerEnabled": true
+        }
+      ]
+    ],
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "com.thingcorp.meat",

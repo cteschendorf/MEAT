@@ -1,6 +1,7 @@
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { ScrollView, Text, TextInput } from 'react-native';
+
 import type { ISODateTime } from '@/domain';
 import { LocalFoodCorpus, openMeatDatabase, SqliteFoodRepository, SqliteMealRepository } from '@/data';
 import { FoodLoggingService, defaultLocalIdFactory, type ManualFoodInput } from '@/services/logging/food-logging';
@@ -11,8 +12,11 @@ const numberOrUndefined = (value: string) => (value.trim() === '' ? undefined : 
 export default function ManualFoodScreen() {
   const colors = useThemeColors();
   const router = useRouter();
+  const params = useLocalSearchParams<{ barcode?: string }>();
+  const initialBarcode = typeof params.barcode === 'string' ? params.barcode : '';
   const [service, setService] = useState<FoodLoggingService | null>(null);
   const [name, setName] = useState('');
+  const [barcode, setBarcode] = useState(initialBarcode);
   const [serving, setServing] = useState('100');
   const [calories, setCalories] = useState('');
   const [protein, setProtein] = useState('');
@@ -66,7 +70,8 @@ export default function ManualFoodScreen() {
         ...(parsed.fiber === undefined ? {} : { fiber: parsed.fiber }),
       };
 
-      const food = await service.createManualFood(input, new Date().toISOString() as ISODateTime);
+      const created = await service.createManualFood(input, new Date().toISOString() as ISODateTime);
+      const food = barcode.trim() ? { ...created, barcode: barcode.trim(), updatedAt: new Date().toISOString() as ISODateTime } : created;
       await service.logFood(food, servingGrams, new Date().toISOString() as ISODateTime);
       router.replace('/');
     } catch (error) {
@@ -74,13 +79,13 @@ export default function ManualFoodScreen() {
     }
   }
 
-  const field = (label: string, value: string, set: (value: string) => void) => (
+  const field = (label: string, value: string, set: (value: string) => void, keyboardType: 'default' | 'decimal-pad' | 'number-pad' = 'decimal-pad') => (
     <TextInput
       key={label}
       accessibilityLabel={label}
       placeholder={label}
       placeholderTextColor={colors.textSecondary}
-      keyboardType={label === 'Food name' ? 'default' : 'decimal-pad'}
+      keyboardType={keyboardType}
       value={value}
       onChangeText={set}
       style={[
@@ -104,14 +109,15 @@ export default function ManualFoodScreen() {
     >
       <Text allowFontScaling selectable style={[typography.title1, { color: colors.textPrimary }]}>Manual food</Text>
       <Surface>
-        {field('Food name', name, setName)}
+        {field('Food name', name, setName, 'default')}
+        {field('Barcode (optional)', barcode, setBarcode, 'number-pad')}
         {field('Serving grams', serving, setServing)}
         {field('Calories per serving', calories, setCalories)}
         {field('Protein grams per serving', protein, setProtein)}
         {field('Carbohydrate grams per serving', carbs, setCarbs)}
         {field('Fat grams per serving', fat, setFat)}
         {field('Fiber grams per serving', fiber, setFiber)}
-        <Text allowFontScaling selectable style={[typography.caption, { color: colors.textSecondary }]}>Leave an unknown nutrient blank. A blank value is not stored as zero.</Text>
+        <Text allowFontScaling selectable style={[typography.caption, { color: colors.textSecondary }]}>Leave an unknown nutrient blank. A blank value is not stored as zero. A saved barcode stays with this local food for future scans.</Text>
         <ActionButton label="Save and log" onPress={() => void save()} disabled={!service || !name.trim()} />
       </Surface>
       {message ? <Text accessibilityLiveRegion="polite" selectable style={[typography.body, { color: colors.destructive }]}>{message}</Text> : null}
