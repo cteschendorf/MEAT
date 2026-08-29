@@ -1,3 +1,5 @@
+export * from '@/data/food-data/local-corpus';
+export * from '@/data/food-data/usda';
 export * from '@/data/repositories/contracts';
 export * from '@/data/sqlite/database';
 export * from '@/data/sqlite/migrations';
