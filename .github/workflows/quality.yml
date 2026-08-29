@@ -17,11 +17,10 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: npm
       - run: npm install --ignore-scripts
       - run: npm run typecheck
       - run: npm run lint
       - run: npm test
 
-# IMPORTANT: This workflow intentionally contains no EAS Build step.
+# IMPORTANT: This workflow intentionally contains no automated remote build step.
 # EAS builds require explicit user approval for each individual build.
