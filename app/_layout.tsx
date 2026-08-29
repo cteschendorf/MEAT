@@ -46,6 +46,7 @@ export default function RootLayout() {
       <Tabs.Screen name="friends" options={{ title: 'Friends' }} />
       <Tabs.Screen name="me" options={{ title: 'Me' }} />
       <Tabs.Screen name="log-food" options={{ title: 'Log food', href: null }} />
+      <Tabs.Screen name="meals-recipes" options={{ title: 'Saved meals & recipes', href: null }} />
       <Tabs.Screen name="scan-barcode" options={{ title: 'Scan barcode', href: null }} />
       <Tabs.Screen name="manual-food" options={{ title: 'Manual food', href: null }} />
       <Tabs.Screen name="data-sources" options={{ title: 'Food data sources', href: null }} />
