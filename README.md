@@ -37,4 +37,8 @@ Prefer Expo Go, local development, the local iOS export, static analysis, and au
 
 ## Project status
 
-The current dogfood implementation includes local nutrition tracking, source-aware food discovery, barcode lookup, the pinned offline USDA core, independent provider caches, onboarding, quick-log suggestions, and saved meals/recipes. Food quantities are entered in grams throughout this candidate; ounce-aware entry is intentionally deferred until it can be supported end to end.
+The current local candidate includes production T-bone branding, a protein-first Today dashboard, and one timestamped timeline event for each meal, snack, or sitting. Every discovery path feeds a shared multi-food composer. Events can carry an optional name, manual location, note, and up to five private on-device photos, then be edited, moved across days, or deleted with a ten-second Undo window. Journal uses the same time-first event model in 100-event pages.
+
+Source-aware food discovery, barcode lookup, the pinned offline USDA core, independent provider caches, onboarding, favorites/recents, and saved meals/recipes remain intact. Food quantities are entered in grams throughout this candidate; ounce-aware entry is intentionally deferred until it can be supported end to end.
+
+Version remains `0.1.0` and iOS build number remains `1` during local acceptance. Build number `2` is reserved for a separately approved release commit.
