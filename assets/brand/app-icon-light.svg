@@ -1,0 +1,74 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+<defs><linearGradient id="iconBackground" x1="90" y1="60" x2="930" y2="980" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#6A3B55"/><stop offset="1" stop-color="#3D1C30"/></linearGradient><radialGradient id="iconLight" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(250 175) rotate(42) scale(590)"><stop stop-color="#FFFFFF" stop-opacity="0.10"/><stop offset="1" stop-color="#FFFFFF" stop-opacity="0"/></radialGradient></defs><rect width="1024" height="1024" fill="url(#iconBackground)"/><rect width="1024" height="1024" fill="url(#iconLight)"/><defs><filter id="markShadow" x="-30%" y="-30%" width="160%" height="170%"><feDropShadow dx="0" dy="20" stdDeviation="18" flood-color="#120D10" flood-opacity="0.38"/></filter></defs><g transform="translate(90 74) scale(1.65)" filter="url(#markShadow)">
+  <title id="title">MEAT T-bone mark</title>
+  <desc id="description">A clean red T-bone steak with a cream bone and fat edge.</desc>
+  <defs>
+    <linearGradient id="rind" x1="86" y1="76" x2="374" y2="430" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#FFD8B7"/>
+      <stop offset="0.48" stop-color="#F2A378"/>
+      <stop offset="1" stop-color="#C9583E"/>
+    </linearGradient>
+    <linearGradient id="meat" x1="118" y1="80" x2="352" y2="420" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#F12A2F"/>
+      <stop offset="0.55" stop-color="#D91F26"/>
+      <stop offset="1" stop-color="#A9131A"/>
+    </linearGradient>
+    <linearGradient id="bone" x1="196" y1="92" x2="274" y2="426" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#FFF8E9"/>
+      <stop offset="0.62" stop-color="#FFE4BE"/>
+      <stop offset="1" stop-color="#F2C18F"/>
+    </linearGradient>
+  </defs>
+
+  <!-- The asymmetric silhouette and broad upper bone are traced from the approved Notion brand board. -->
+  <path
+    d="M255 57C221 38 174 37 136 50C91 65 64 100 60 144C56 191 73 240 101 289C130 340 170 389 214 433C236 455 259 474 282 462C307 448 312 417 314 388C318 345 333 311 360 284C391 253 428 228 446 189C465 147 456 106 424 80C391 53 341 51 299 68C281 76 270 66 255 57Z"
+    fill="#A94336"
+  />
+  <path
+    d="M257 64C224 46 178 44 141 57C101 71 76 102 72 144C68 187 85 234 111 280C139 329 178 377 220 419C239 438 257 454 273 446C291 437 296 411 298 383C302 334 320 295 350 265C378 237 416 214 431 180C446 147 439 117 414 96C386 73 345 72 308 87C286 96 273 73 257 64Z"
+    fill="url(#rind)"
+  />
+  <path
+    d="M246 82C216 64 177 64 145 76C110 89 90 116 87 151C84 189 100 231 124 273C152 321 188 365 228 405C244 421 256 433 266 427C276 420 279 399 281 376C285 323 304 279 337 247C365 220 400 199 414 169C426 143 420 120 400 104C378 86 347 85 317 97C286 109 270 97 246 82Z"
+    fill="url(#meat)"
+  />
+
+  <!-- Fat edge highlights retain the dimensional character without relying on raster texture. -->
+  <path d="M144 70C108 84 85 113 82 151C79 190 95 234 120 278" fill="none" stroke="#FFE8D0" stroke-width="9" stroke-linecap="round" opacity="0.92"/>
+  <path d="M124 284C151 330 188 375 228 415C243 430 257 444 270 437" fill="none" stroke="#FFD4AC" stroke-width="8" stroke-linecap="round" opacity="0.78"/>
+  <path d="M305 91C340 77 381 79 407 100C429 118 435 145 422 174" fill="none" stroke="#FFE1C4" stroke-width="8" stroke-linecap="round" opacity="0.84"/>
+
+  <!-- Restrained marbling remains readable at large sizes and disappears cleanly at small sizes. -->
+  <g fill="none" stroke="#FFC5B6" stroke-width="4" stroke-linecap="round" opacity="0.66">
+    <path d="M120 141C147 151 165 166 174 190C181 211 177 235 186 254"/>
+    <path d="M103 190C128 189 148 200 160 218"/>
+    <path d="M133 272C152 260 174 262 192 278C205 290 211 307 222 316"/>
+    <path d="M163 103C184 118 198 138 203 161"/>
+    <path d="M316 131C338 119 367 121 389 138"/>
+    <path d="M304 179C331 174 357 184 374 205"/>
+    <path d="M288 250C316 247 338 259 350 279"/>
+    <path d="M279 313C303 318 319 332 326 353"/>
+    <path d="M205 347C223 338 245 340 260 352"/>
+  </g>
+  <g fill="#FF8E7E" opacity="0.48">
+    <ellipse cx="145" cy="130" rx="12" ry="8" transform="rotate(28 145 130)"/>
+    <ellipse cx="133" cy="229" rx="15" ry="9" transform="rotate(42 133 229)"/>
+    <ellipse cx="196" cy="294" rx="16" ry="9" transform="rotate(36 196 294)"/>
+    <ellipse cx="352" cy="153" rx="16" ry="9" transform="rotate(-18 352 153)"/>
+    <ellipse cx="328" cy="224" rx="14" ry="8" transform="rotate(20 328 224)"/>
+  </g>
+
+  <!-- The oversized T-bone is the distinctive small-scale brand cue. -->
+  <path
+    d="M168 101C189 91 215 93 240 105C263 116 284 119 310 107C335 95 355 97 363 110C371 123 362 139 347 147C322 160 297 159 277 151L279 374C280 400 272 421 257 424C242 427 232 410 236 388L247 155C225 158 203 152 182 142C163 133 153 119 158 109C160 105 163 103 168 101Z"
+    fill="#E7AE78"
+  />
+  <path
+    d="M171 96C192 87 216 90 242 102C263 112 284 115 308 104C332 93 350 95 357 106C363 116 356 128 343 135C321 147 296 146 271 137L271 374C272 393 267 409 258 412C248 414 242 401 245 386L255 142C229 149 207 143 185 133C169 126 160 114 164 105C165 101 168 99 171 96Z"
+    fill="url(#bone)"
+  />
+  <path d="M186 106C204 100 222 103 242 112" fill="none" stroke="#FFFFFF" stroke-width="5" stroke-linecap="round" opacity="0.72"/>
+  <path d="M254 160L250 366" fill="none" stroke="#FFFDF6" stroke-width="4" stroke-linecap="round" opacity="0.65"/>
+</g>
+</svg>

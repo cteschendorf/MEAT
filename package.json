@@ -10,9 +10,10 @@
     "web": "expo start --web",
     "typecheck": "tsc --noEmit",
     "lint": "eslint . --ignore-pattern 'services/usda-proxy/dist/**'",
-    "test": "npm run test:runtime",
+    "test": "npm run test:runtime && npm run test:components",
     "test:runtime": "tsx --test tests/*.test.ts tests/*.test.mjs",
-    "quality:runtime": "npm run typecheck && npm run lint && npm run test:runtime",
+    "test:components": "jest --runInBand",
+    "quality:runtime": "npm run typecheck && npm run lint && npm run test",
     "quality:expo": "expo install --check && npx --yes expo-doctor@1.20.4",
     "quality:usda": "python3 -m unittest discover -s scripts/usda-core -p 'test_*.py' && python3 -c \"import hashlib,json,pathlib,sqlite3; db=pathlib.Path('assets/usda/meat-usda-core.sqlite'); manifest=json.loads(pathlib.Path('assets/usda/manifest.json').read_text(encoding='utf-8')); assert db.stat().st_size == manifest['sqlite']['bytes']; assert hashlib.sha256(db.read_bytes()).hexdigest() == manifest['sqlite']['sha256']; connection=sqlite3.connect('file:' + str(db) + '?mode=ro', uri=True); counts={'foods': connection.execute('SELECT count(*) FROM foods').fetchone()[0], 'fts_rows': connection.execute('SELECT count(*) FROM foods_fts').fetchone()[0], 'nutrient_values': connection.execute('SELECT count(*) FROM nutrient_values').fetchone()[0], 'portions': connection.execute('SELECT count(*) FROM portions').fetchone()[0]}; assert counts == manifest['record_counts']; assert connection.execute('PRAGMA integrity_check').fetchone() == ('ok',); assert connection.execute('PRAGMA foreign_key_check').fetchall() == []; assert connection.execute('SELECT count(*) FROM foods WHERE data_type = ?', ('Branded',)).fetchone()[0] == 0; assert connection.execute('SELECT count(*) FROM foods_fts WHERE foods_fts MATCH ?', ('chicken*',)).fetchone()[0] > 0; connection.close()\"",
     "quality:proxy": "npm --prefix services/usda-proxy run check",
@@ -24,13 +25,21 @@
     "usda:rebuild": "python3 scripts/usda-core/generate.py"
   },
   "dependencies": {
+    "@react-native-community/datetimepicker": "9.1.0",
     "expo": "~57.0.9",
     "expo-camera": "~57.0.4",
     "expo-constants": "~57.0.8",
+    "expo-file-system": "~57.0.6",
+    "expo-font": "~57.0.2",
+    "expo-image": "~57.0.3",
+    "expo-image-manipulator": "~57.0.14",
+    "expo-image-picker": "~57.0.14",
     "expo-linking": "~57.0.4",
     "expo-router": "~57.0.9",
+    "expo-splash-screen": "~57.0.8",
     "expo-sqlite": "~57.0.2",
     "expo-status-bar": "~57.0.1",
+    "expo-symbols": "~57.0.2",
     "react": "19.2.3",
     "react-dom": "19.2.3",
     "react-native": "0.86.3",
@@ -38,15 +47,27 @@
     "react-native-reanimated": "4.5.1",
     "react-native-safe-area-context": "~5.7.0",
     "react-native-screens": "4.26.0",
+    "react-native-svg": "15.15.4",
     "react-native-web": "~0.21.0",
     "react-native-worklets": "0.10.1"
   },
   "devDependencies": {
+    "@testing-library/react-native": "^14.0.1",
+    "@types/jest": "29.5.14",
     "@types/node": "^24.3.0",
     "@types/react": "~19.2.2",
     "eslint": "^9.39.5",
     "eslint-config-expo": "~57.0.2",
+    "jest": "~29.7.0",
+    "jest-expo": "~57.0.5",
     "tsx": "^4.23.12",
     "typescript": "~6.0.3"
+  },
+  "jest": {
+    "preset": "jest-expo",
+    "testMatch": [
+      "<rootDir>/tests/**/*.component.test.ts",
+      "<rootDir>/tests/**/*.component.test.tsx"
+    ]
   }
 }

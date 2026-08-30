@@ -14,7 +14,7 @@ export function ActionButton({ label, icon, tone = 'primary', disabled, style, .
   const colors = useThemeColors();
   const backgroundColor =
     tone === 'primary' ? colors.action : tone === 'destructive' ? colors.destructive : colors.surfaceMuted;
-  const textColor = tone === 'secondary' ? colors.textPrimary : '#FFFFFF';
+  const textColor = tone === 'secondary' ? colors.textPrimary : colors.textOnAction;
 
   return (
     <Pressable
@@ -27,12 +27,14 @@ export function ActionButton({ label, icon, tone = 'primary', disabled, style, .
           alignItems: 'center',
           backgroundColor,
           borderCurve: 'continuous',
+          borderColor: tone === 'secondary' ? colors.borderStrong : backgroundColor,
           borderRadius: radii.md,
+          borderWidth: 1,
           flexDirection: 'row',
           gap: spacing.xs,
           justifyContent: 'center',
           minHeight: minimumTouchTarget,
-          opacity: disabled ? 0.45 : state.pressed ? 0.75 : 1,
+          opacity: disabled ? 0.45 : state.pressed ? 0.82 : 1,
           paddingHorizontal: spacing.md,
           paddingVertical: spacing.sm,
         },
