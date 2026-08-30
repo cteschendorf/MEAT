@@ -1,35 +1,45 @@
-import { Tabs, type ErrorBoundaryProps, useRouter, useSegments } from 'expo-router';
+import { type ErrorBoundaryProps, useRouter, useSegments } from 'expo-router';
+import Stack from 'expo-router/stack';
 import { useEffect } from 'react';
-import { Pressable, Text, View } from 'react-native';
+import { Text, View } from 'react-native';
 
 import { openMeatDatabase, SqliteUserPreferencesRepository } from '@/data';
+import { ActionButton, spacing, typography, useThemeColors } from '@/ui';
 
 function AppScreenErrorBoundary({ error, retry }: ErrorBoundaryProps) {
+  const colors = useThemeColors();
+
   return (
-    <View style={{ flex: 1, justifyContent: 'center', padding: 24, gap: 12 }}>
-      <Text selectable style={{ fontSize: 20, fontWeight: '600' }}>Something went wrong</Text>
-      <Text selectable>{error.message}</Text>
-      <Pressable accessibilityRole="button" onPress={retry}>
-        <Text style={{ fontWeight: '600' }}>Try again</Text>
-      </Pressable>
+    <View
+      style={{
+        backgroundColor: colors.background,
+        flex: 1,
+        justifyContent: 'center',
+        padding: spacing.lg,
+        gap: spacing.md,
+      }}
+    >
+      <Text accessibilityRole="header" allowFontScaling selectable style={[typography.title3, { color: colors.textPrimary }]}>Something went wrong</Text>
+      <Text allowFontScaling selectable style={[typography.body, { color: colors.textSecondary }]}>{error.message}</Text>
+      <ActionButton label="Try again" onPress={retry} />
     </View>
   );
 }
 
-export const unstable_settings = { screenErrorBoundary: AppScreenErrorBoundary };
+export const unstable_settings = { anchor: '(tabs)', screenErrorBoundary: AppScreenErrorBoundary };
 
 export default function RootLayout() {
+  const colors = useThemeColors();
   const router = useRouter();
   const segments = useSegments();
-  const routeKey = segments.join('/');
-  const isOnboardingRoute = routeKey === 'onboarding';
+  const isOnboardingRoute = segments.some((segment) => segment === 'onboarding');
 
   useEffect(() => {
     if (isOnboardingRoute) return;
     let active = true;
     void openMeatDatabase()
-      .then(async (db) => {
-        const complete = await new SqliteUserPreferencesRepository(db).isOnboardingComplete();
+      .then(async (database) => {
+        const complete = await new SqliteUserPreferencesRepository(database).isOnboardingComplete();
         if (active && !complete) router.replace('/onboarding');
       })
       .catch(() => {
@@ -41,17 +51,28 @@ export default function RootLayout() {
   }, [isOnboardingRoute, router]);
 
   return (
-    <Tabs screenOptions={{ headerShadowVisible: false }}>
-      <Tabs.Screen name="index" options={{ title: 'Today' }} />
-      <Tabs.Screen name="journal" options={{ title: 'Journal' }} />
-      <Tabs.Screen name="friends" options={{ title: 'Friends' }} />
-      <Tabs.Screen name="me" options={{ title: 'Me' }} />
-      <Tabs.Screen name="log-food" options={{ title: 'Log food', href: null }} />
-      <Tabs.Screen name="meals-recipes" options={{ title: 'Saved meals & recipes', href: null }} />
-      <Tabs.Screen name="scan-barcode" options={{ title: 'Scan barcode', href: null }} />
-      <Tabs.Screen name="manual-food" options={{ title: 'Manual food', href: null }} />
-      <Tabs.Screen name="data-sources" options={{ title: 'Food data sources', href: null }} />
-      <Tabs.Screen name="onboarding" options={{ title: 'Goals & units', href: null }} />
-    </Tabs>
+    <Stack
+      screenOptions={{
+        contentStyle: { backgroundColor: colors.background },
+        headerBackButtonDisplayMode: 'minimal',
+        headerShadowVisible: false,
+        headerStyle: { backgroundColor: colors.background },
+        headerTintColor: colors.brand,
+        headerTitleStyle: { color: colors.textPrimary, fontWeight: '700' },
+      }}
+    >
+      <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+      <Stack.Screen name="log-food" options={{ title: 'Log food' }} />
+      <Stack.Screen name="meals-recipes" options={{ title: 'Saved meals & recipes' }} />
+      <Stack.Screen name="scan-barcode" options={{ title: 'Scan barcode' }} />
+      <Stack.Screen name="manual-food" options={{ title: 'Manual food' }} />
+      <Stack.Screen name="data-sources" options={{ title: 'Food data sources' }} />
+      <Stack.Screen name="onboarding" options={{ title: 'Goals & units' }} />
+      <Stack.Screen name="meal/[id]" options={{ title: 'Meal event' }} />
+      <Stack.Screen
+        name="meal-deleted"
+        options={{ gestureEnabled: false, headerBackVisible: false, title: 'Meal deleted' }}
+      />
+    </Stack>
   );
 }
