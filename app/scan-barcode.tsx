@@ -1,11 +1,11 @@
 import { CameraView, useCameraPermissions } from 'expo-camera';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import { ScrollView, Text, TextInput, View } from 'react-native';
 
 import type { FoodCandidate, FoodSourceId } from '@/domain/food/source';
 import type { ISODateTime } from '@/domain/shared/ids';
-import { openAppServices } from '@/services';
+import { openAppServices, type AppServices } from '@/services/app-services';
 import { ExclusiveActionGate } from '@/services/actions/exclusive-action';
 import {
   BarcodeScanDeduplicator,
@@ -18,6 +18,8 @@ import {
   type SourceAwareBarcodeResolution,
 } from '@/services/logging/source-aware-barcode';
 import { ActionButton, Surface, spacing, typography, useThemeColors } from '@/ui';
+import { addCandidateToComposer } from '@/ui/meal-composer-entry';
+import { useMutationRouteGuard } from '@/ui/navigation/use-mutation-route-guard';
 
 const sourceNames: Readonly<Record<FoodSourceId, string>> = {
   personal: 'My foods',
@@ -47,7 +49,10 @@ function freshnessText(outcome: Extract<BarcodeSourceOutcome, { state: 'found' }
 export default function ScanBarcodeScreen() {
   const colors = useThemeColors();
   const router = useRouter();
+  const params = useLocalSearchParams<{ draftId?: string }>();
+  const draftId = typeof params.draftId === 'string' ? params.draftId : undefined;
   const [permission, requestPermission] = useCameraPermissions();
+  const [services, setServices] = useState<AppServices | null>(null);
   const [service, setService] = useState<SourceAwareBarcodeService | null>(null);
   const [cameraActive, setCameraActive] = useState(false);
   const [manualBarcode, setManualBarcode] = useState('');
@@ -55,18 +60,27 @@ export default function ScanBarcodeScreen() {
   const [selected, setSelected] = useState<FoodCandidate | null>(null);
   const [grams, setGrams] = useState('100');
   const [resolving, setResolving] = useState(false);
-  const [logging, setLogging] = useState(false);
+  const [adding, setAdding] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const inFlight = useRef(false);
   const abortController = useRef<AbortController | null>(null);
   const deduplicator = useRef(new BarcodeScanDeduplicator());
   const logGate = useRef(new ExclusiveActionGate()).current;
+  const queueRouteExit = useMutationRouteGuard(
+    resolving || adding,
+    resolving
+      ? 'Please wait while the barcode sources finish checking.'
+      : 'Please wait while this food is added.',
+  );
 
   useEffect(() => {
     let active = true;
     void openAppServices()
       .then((services) => {
-        if (active) setService(new SourceAwareBarcodeService(services.discovery, services.logging));
+        if (active) {
+          setServices(services);
+          setService(new SourceAwareBarcodeService(services.discovery, services.logging));
+        }
       })
       .catch((error: unknown) => {
         if (active) setMessage(error instanceof Error ? error.message : 'Unable to open food data sources.');
@@ -127,7 +141,10 @@ export default function ScanBarcodeScreen() {
       setManualBarcode(result.barcode);
       setCameraActive(false);
       if (result.status === 'not-found') {
-        router.replace({ pathname: '/manual-food', params: { barcode: result.barcode } });
+        queueRouteExit(() => router.dismissTo({
+          pathname: '/manual-food',
+          params: { barcode: result.barcode, ...(draftId ? { draftId } : {}) },
+        }));
         return;
       }
       setResolution(result);
@@ -159,27 +176,32 @@ export default function ScanBarcodeScreen() {
     }
   }
 
-  async function persistAndLog() {
-    if (!service || !selected) return;
+  async function addToEvent() {
+    if (!services || !selected) return;
     const amount = Number(grams);
     if (!Number.isFinite(amount) || amount <= 0) {
       setMessage('Enter a portion greater than zero grams.');
       return;
     }
     await logGate.run(async () => {
-      setLogging(true);
+      setAdding(true);
       setMessage(null);
       try {
-        await service.persistAndLog(
+        const result = await addCandidateToComposer(
+          services,
+          draftId,
           selected,
           amount,
           new Date().toISOString() as ISODateTime,
         );
-        router.replace('/');
+        queueRouteExit(() => router.dismissTo({
+          pathname: '/log-food',
+          params: { draftId: result.session.draft.id },
+        }));
       } catch (error) {
-        setMessage(error instanceof Error ? error.message : 'Unable to save and log this food.');
+        setMessage(error instanceof Error ? error.message : 'Unable to retain and add this food.');
       } finally {
-        setLogging(false);
+        setAdding(false);
       }
     });
   }
@@ -319,9 +341,9 @@ export default function ScanBarcodeScreen() {
             style={[typography.body, { color: colors.textPrimary, borderColor: colors.border, borderWidth: 1, borderRadius: 12, padding: 12 }]}
           />
           <ActionButton
-            label={logging ? 'Saving and logging…' : 'Log food'}
-            onPress={() => void persistAndLog()}
-            disabled={logging}
+            label={adding ? 'Saving and adding…' : 'Add to event'}
+            onPress={() => void addToEvent()}
+            disabled={adding}
           />
         </Surface>
       ) : null}
@@ -334,7 +356,10 @@ export default function ScanBarcodeScreen() {
           <ActionButton
             label="Create product manually"
             tone="secondary"
-            onPress={() => router.push({ pathname: '/manual-food', params: { barcode: resolution.barcode } })}
+            onPress={() => router.push({
+              pathname: '/manual-food',
+              params: { barcode: resolution.barcode, ...(draftId ? { draftId } : {}) },
+            })}
           />
         </Surface>
       ) : null}

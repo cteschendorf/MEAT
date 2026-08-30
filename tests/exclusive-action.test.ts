@@ -23,6 +23,7 @@ test('two same-render log taps write one saved meal', async () => {
     },
     async delete() {},
     async listByDateRange() { return written; },
+    async listRecent() { return written; },
   };
   const savedMeals: SavedMealRepository = {
     async getById() { return null; },

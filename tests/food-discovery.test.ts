@@ -301,6 +301,7 @@ test('persisted external food logs resolve into correct Today totals', async () 
     async listByDateRange(start, end) {
       return [...mealValues.values()].filter((meal) => meal.occurredAt >= start && meal.occurredAt < end);
     },
+    async listRecent() { return [...mealValues.values()]; },
   };
   let sequence = 0;
   const logging = new FoodLoggingService(composite, meals, (prefix) => `${prefix}:${++sequence}`);
@@ -387,6 +388,7 @@ test('USDA Atwater-only Foundation calories survive provider caching, logging, a
     async listByDateRange(start, end) {
       return [...mealValues.values()].filter((meal) => meal.occurredAt >= start && meal.occurredAt < end);
     },
+    async listRecent() { return [...mealValues.values()]; },
   };
   let sequence = 0;
 

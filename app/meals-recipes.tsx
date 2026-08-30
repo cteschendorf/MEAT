@@ -1,3 +1,4 @@
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { ScrollView, Text, TextInput, View } from 'react-native';
 
@@ -14,11 +15,15 @@ import { ExclusiveActionGate } from '@/services/actions/exclusive-action';
 import { defaultLocalIdFactory } from '@/services/logging/food-logging';
 import {
   foodRefForFoodId,
-  recipeGramsForServings,
   recipeServingGrams,
   resolvedFoodId,
 } from '@/services/meals/saved-meals';
 import { ActionButton, Surface, spacing, typography, useThemeColors } from '@/ui';
+import {
+  addRecipeSnapshotToComposer,
+  prefillSavedMealComposer,
+} from '@/ui/meal-composer-entry';
+import { useMutationRouteGuard } from '@/ui/navigation/use-mutation-route-guard';
 
 interface SavedMealDraftItem {
   key: string;
@@ -60,6 +65,9 @@ function sourceLabel(ref: FoodRef): string {
 
 export default function MealsRecipesScreen() {
   const colors = useThemeColors();
+  const router = useRouter();
+  const params = useLocalSearchParams<{ draftId?: string }>();
+  const draftId = typeof params.draftId === 'string' ? params.draftId : undefined;
   const [services, setServices] = useState<AppServices | null>(null);
   const [foods, setFoods] = useState<readonly Food[]>([]);
   const [recipes, setRecipes] = useState<readonly Recipe[]>([]);
@@ -84,6 +92,10 @@ export default function MealsRecipesScreen() {
   const [busyAction, setBusyAction] = useState<string | null>(null);
   const actionGate = useRef(new ExclusiveActionGate()).current;
   const busy = busyAction !== null;
+  const queueRouteExit = useMutationRouteGuard(
+    busy,
+    'Please wait while the saved meal or recipe action finishes.',
+  );
 
   const selectableFoods = useMemo(
     () => foods.filter((food) => food.kind !== 'recipe').slice(0, 40),
@@ -237,14 +249,22 @@ export default function MealsRecipesScreen() {
     });
   }
 
-  async function logSavedMeal(savedMeal: SavedMeal) {
+  async function addSavedMeal(savedMeal: SavedMeal) {
     if (!services) return;
-    await runMutation(`logging-saved-meal:${savedMeal.id}`, async () => {
+    await runMutation(`adding-saved-meal:${savedMeal.id}`, async () => {
       try {
-        await services.savedMealService.log(savedMeal, new Date().toISOString() as ISODateTime);
-        setMessage(`${savedMeal.name} logged as one meal.`);
+        const result = await prefillSavedMealComposer(
+          services,
+          draftId,
+          savedMeal,
+          new Date().toISOString() as ISODateTime,
+        );
+        queueRouteExit(() => router.dismissTo({
+          pathname: '/log-food',
+          params: { draftId: result.session.draft.id },
+        }));
       } catch (error) {
-        setMessage(error instanceof Error ? error.message : 'Unable to log the saved meal.');
+        setMessage(error instanceof Error ? error.message : 'Unable to add the saved meal.');
       }
     });
   }
@@ -420,23 +440,27 @@ export default function MealsRecipesScreen() {
     });
   }
 
-  async function logRecipe(recipe: Recipe) {
+  async function addRecipe(recipe: Recipe) {
     if (!services) return;
-    await runMutation(`logging-recipe:${recipe.id}`, async () => {
+    await runMutation(`adding-recipe:${recipe.id}`, async () => {
       try {
         const servings = positiveNumber(
           recipeLogServings[recipe.id] ?? '1',
-          'Recipe servings to log',
+          'Recipe servings to add',
         );
-        const food = await services.recipeService.resolveRevisionFood(recipe);
-        await services.logging.logFood(
-          food,
-          recipeGramsForServings(recipe, servings),
+        const result = await addRecipeSnapshotToComposer(
+          services,
+          draftId,
+          recipe,
+          servings,
           new Date().toISOString() as ISODateTime,
         );
-        setMessage(`${servings} serving${servings === 1 ? '' : 's'} of ${recipe.name} logged.`);
+        queueRouteExit(() => router.dismissTo({
+          pathname: '/log-food',
+          params: { draftId: result.session.draft.id },
+        }));
       } catch (error) {
-        setMessage(error instanceof Error ? error.message : 'Unable to log the recipe.');
+        setMessage(error instanceof Error ? error.message : 'Unable to add the recipe.');
       }
     });
   }
@@ -459,9 +483,9 @@ export default function MealsRecipesScreen() {
       contentContainerStyle={{ padding: spacing.md, gap: spacing.md, backgroundColor: colors.background }}
     >
       <Text allowFontScaling selectable style={[typography.title1, { color: colors.textPrimary }]}>Saved meals & recipes</Text>
-      <Text allowFontScaling selectable style={[typography.body, { color: colors.textSecondary }]}>Combine personal and provider foods into reusable meals and recipes. Logging a saved meal creates one complete meal, while recipes can be logged in whole or fractional servings.</Text>
+      <Text allowFontScaling selectable style={[typography.body, { color: colors.textSecondary }]}>Combine personal and provider foods into reusable meals and recipes. Add a saved meal or any fractional recipe serving to the event you are composing, then confirm everything once.</Text>
 
-      {busyAction ? <Text accessibilityLiveRegion="polite" style={[typography.body, { color: colors.textSecondary }]}>Saving. Please wait…</Text> : null}
+      {busyAction ? <Text accessibilityLiveRegion="polite" style={[typography.body, { color: colors.textSecondary }]}>Working. Please wait…</Text> : null}
       {message ? <Text accessibilityLiveRegion="polite" style={[typography.body, { color: colors.textSecondary }]}>{message}</Text> : null}
 
       <Surface>
@@ -509,7 +533,7 @@ export default function MealsRecipesScreen() {
           {savedMeal.items.map((item, index) => (
             <Text key={`${item.foodId}:${index}`} allowFontScaling style={[typography.caption, { color: colors.textSecondary }]}>{nameForFoodId(resolvedFoodId(item))} · {item.portion.gramWeight === undefined ? 'saved serving' : `${item.portion.gramWeight} g`}</Text>
           ))}
-          <ActionButton label="Log all items" onPress={() => void logSavedMeal(savedMeal)} disabled={busy} />
+          <ActionButton label="Add all items to event" onPress={() => void addSavedMeal(savedMeal)} disabled={busy} />
           <ActionButton label="Duplicate" tone="secondary" onPress={() => void duplicateSavedMeal(savedMeal)} disabled={busy} />
           <ActionButton label="Edit" tone="secondary" onPress={() => editSavedMeal(savedMeal)} disabled={busy} />
           <ActionButton label="Delete" tone="secondary" onPress={() => void deleteSavedMeal(savedMeal)} disabled={busy} />
@@ -547,8 +571,8 @@ export default function MealsRecipesScreen() {
           <Surface key={recipe.id}>
             <Text allowFontScaling selectable style={[typography.bodyStrong, { color: colors.textPrimary }]}>{recipe.name}</Text>
             <Text allowFontScaling style={[typography.caption, { color: colors.textSecondary }]}>{recipe.ingredients.length} ingredient{recipe.ingredients.length === 1 ? '' : 's'} · {recipe.yieldServings} serving{recipe.yieldServings === 1 ? '' : 's'}{servingGrams === null ? '' : ` · ${servingGrams} g each`}</Text>
-            <TextInput accessibilityLabel={`${recipe.name} servings to log`} keyboardType="decimal-pad" placeholder="Servings to log, such as 0.5" placeholderTextColor={colors.textSecondary} value={recipeLogServings[recipe.id] ?? '1'} onChangeText={(value) => setRecipeLogServings((current) => ({ ...current, [recipe.id]: value }))} style={inputStyle} />
-            <ActionButton label="Log servings" onPress={() => void logRecipe(recipe)} disabled={busy} />
+            <TextInput accessibilityLabel={`${recipe.name} servings to add`} keyboardType="decimal-pad" placeholder="Servings to add, such as 0.5" placeholderTextColor={colors.textSecondary} value={recipeLogServings[recipe.id] ?? '1'} onChangeText={(value) => setRecipeLogServings((current) => ({ ...current, [recipe.id]: value }))} style={inputStyle} />
+            <ActionButton label="Add servings to event" onPress={() => void addRecipe(recipe)} disabled={busy} />
             <ActionButton label="Duplicate" tone="secondary" onPress={() => void duplicateRecipe(recipe)} disabled={busy} />
             <ActionButton label="Edit" tone="secondary" onPress={() => editRecipe(recipe)} disabled={busy} />
             <ActionButton label="Delete" tone="secondary" onPress={() => void deleteRecipe(recipe)} disabled={busy} />

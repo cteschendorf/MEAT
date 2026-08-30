@@ -26,6 +26,7 @@ const mealRepository: MealRepository = {
     if (index >= 0) meals.splice(index, 1);
   },
   async listByDateRange() { return meals; },
+  async listRecent() { return meals; },
 };
 let sequence = 0;
 const service = new FoodLoggingService(

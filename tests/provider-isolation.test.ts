@@ -108,6 +108,7 @@ function mealsReturning(values: readonly Meal[]): MealRepository {
     async save() {},
     async delete() {},
     async listByDateRange() { return values; },
+    async listRecent() { return values; },
   };
 }
 

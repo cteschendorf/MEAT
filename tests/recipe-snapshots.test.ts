@@ -62,6 +62,7 @@ class MemoryMealRepository implements MealRepository {
       (meal) => meal.occurredAt >= start && meal.occurredAt < end,
     );
   }
+  async listRecent(limit = 250) { return [...this.values.values()].slice(0, limit); }
 }
 
 function ingredientFood(): Food {

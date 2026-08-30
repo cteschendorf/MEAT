@@ -8,7 +8,10 @@ export interface MediaAsset {
   kind: MediaKind;
   storage: MediaStorage;
   uri: string;
-  width?: number;
-  height?: number;
+  mimeType: string;
+  width: number;
+  height: number;
+  byteSize: number;
   createdAt: ISODateTime;
+  updatedAt: ISODateTime;
 }

@@ -383,6 +383,31 @@ const migrations: readonly Migration[] = [
       await canonicalizeReferenceTable(db, 'known_food_refs');
     },
   },
+  {
+    version: 11,
+    name: 'private-meal-media-assets',
+    async up(db) {
+      await db.execAsync(`
+        CREATE TABLE IF NOT EXISTS media_assets (
+          id TEXT PRIMARY KEY NOT NULL,
+          meal_id TEXT REFERENCES meals(id) ON DELETE SET NULL,
+          kind TEXT NOT NULL CHECK (kind = 'photo'),
+          storage TEXT NOT NULL CHECK (storage IN ('local', 'synced')),
+          uri TEXT NOT NULL,
+          mime_type TEXT NOT NULL,
+          width INTEGER NOT NULL CHECK (width > 0),
+          height INTEGER NOT NULL CHECK (height > 0),
+          byte_size INTEGER NOT NULL CHECK (byte_size >= 0),
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS media_assets_meal_idx
+          ON media_assets (meal_id, created_at ASC);
+        CREATE INDEX IF NOT EXISTS media_assets_unattached_idx
+          ON media_assets (created_at ASC) WHERE meal_id IS NULL;
+      `);
+    },
+  },
 ];
 
 export async function migrateDatabase(db: SQLiteDatabase): Promise<void> {
