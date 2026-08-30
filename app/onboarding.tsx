@@ -1,9 +1,8 @@
 import { useRouter } from 'expo-router';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { ScrollView, Text, TextInput, View } from 'react-native';
 
-import type { GoalMode, UserPreferences } from '@/domain';
-import type { CoreNutrientCode, ISODateTime } from '@/domain';
+import type { CoreNutrientCode, GoalMode, ISODateTime, UserPreferences } from '@/domain';
 import { openMeatDatabase, SqliteGoalRepository, SqliteUserPreferencesRepository } from '@/data';
 import {
   defaultUserPreferences,
@@ -11,6 +10,7 @@ import {
   OnboardingSetupService,
   type GoalSetupInput,
 } from '@/services/onboarding/setup';
+import { ExclusiveActionGate } from '@/services/actions/exclusive-action';
 import { ActionButton, ScreenState, Surface, spacing, typography, useThemeColors } from '@/ui';
 
 interface GoalDraft {
@@ -56,6 +56,7 @@ export default function OnboardingScreen() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const saveGate = useRef(new ExclusiveActionGate()).current;
 
   useEffect(() => {
     let active = true;
@@ -69,7 +70,10 @@ export default function OnboardingScreen() {
         const loaded = await setupService.load(now);
         if (!active) return;
         setService(setupService);
-        setPreferences(loaded.preferences);
+        // Batch 3 accepts food quantities in grams throughout. Normalize any
+        // earlier local draft preference so setup cannot promise an ounce UI
+        // that the logging screens do not yet provide.
+        setPreferences({ ...loaded.preferences, massUnit: 'g' });
         setDrafts(draftsFromInputs(loaded.goals));
         setEditingExisting(loaded.onboardingComplete);
       })
@@ -99,41 +103,51 @@ export default function OnboardingScreen() {
 
   async function save() {
     if (!service) return;
-    setMessage(null);
-    setSaving(true);
-    try {
-      const goals: GoalSetupInput[] = drafts.map((draft) => {
-        const minimum = numberOrUndefined(draft.minimum);
-        const maximum = numberOrUndefined(draft.maximum);
-        if (Number.isNaN(minimum) || Number.isNaN(maximum)) throw new Error('Goal values must be numbers.');
-        return {
-          nutrientCode: draft.nutrientCode,
-          mode: draft.mode,
-          ...(minimum !== undefined ? { minimum } : {}),
-          ...(maximum !== undefined ? { maximum } : {}),
-        };
-      });
-      await service.save({ preferences, goals }, new Date().toISOString() as ISODateTime);
-      router.replace('/');
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : 'Unable to save setup.');
-    } finally {
-      setSaving(false);
-    }
+    await saveGate.run(async () => {
+      setMessage(null);
+      setSaving(true);
+      try {
+        const goals: GoalSetupInput[] = drafts.map((draft) => {
+          const minimum = numberOrUndefined(draft.minimum);
+          const maximum = numberOrUndefined(draft.maximum);
+          if (Number.isNaN(minimum) || Number.isNaN(maximum)) throw new Error('Goal values must be numbers.');
+          return {
+            nutrientCode: draft.nutrientCode,
+            mode: draft.mode,
+            ...(minimum !== undefined ? { minimum } : {}),
+            ...(maximum !== undefined ? { maximum } : {}),
+          };
+        });
+        await service.save({ preferences, goals }, new Date().toISOString() as ISODateTime);
+        router.replace('/');
+      } catch (error) {
+        setMessage(error instanceof Error ? error.message : 'Unable to save setup.');
+      } finally {
+        setSaving(false);
+      }
+    });
   }
 
   async function skip() {
     if (!service) return;
-    setMessage(null);
-    setSaving(true);
-    try {
-      await service.skip(new Date().toISOString() as ISODateTime);
-      router.replace('/');
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : 'Unable to finish setup.');
-    } finally {
-      setSaving(false);
-    }
+    await saveGate.run(async () => {
+      setMessage(null);
+      setSaving(true);
+      try {
+        await service.save(
+          {
+            preferences,
+            goals: goalSetupDefinitions.map(({ nutrientCode }) => ({ nutrientCode, mode: 'none' })),
+          },
+          new Date().toISOString() as ISODateTime,
+        );
+        router.replace('/');
+      } catch (error) {
+        setMessage(error instanceof Error ? error.message : 'Unable to finish setup.');
+      } finally {
+        setSaving(false);
+      }
+    });
   }
 
   if (loading) return <ScreenState title="Loading setup" message="Preparing your local nutrition settings." />;
@@ -145,33 +159,23 @@ export default function OnboardingScreen() {
       contentContainerStyle={{ padding: spacing.md, gap: spacing.md, backgroundColor: colors.background }}
     >
       <View style={{ gap: spacing.xs }}>
-        <Text allowFontScaling selectable style={[typography.title1, { color: colors.textPrimary }]}>
+        <Text accessibilityRole="header" allowFontScaling selectable style={[typography.title1, { color: colors.textPrimary }]}>
           {editingExisting ? 'Goals & units' : 'Set up MEAT'}
         </Text>
         <Text allowFontScaling selectable style={[typography.body, { color: colors.textSecondary }]}>
-          MEAT keeps ordinary food tracking local and lets each nutrition goal mean what you intend. Set only the goals you care about; you can change them later.
+          MEAT keeps ordinary food tracking local. Goals are optional, and you can add or change them at any time.
         </Text>
       </View>
 
       <Surface>
-        <Text allowFontScaling style={[typography.title3, { color: colors.textPrimary }]}>Logging units</Text>
-        <Text allowFontScaling style={[typography.body, { color: colors.textSecondary }]}>Choose how food portions are entered. Nutrition calculations remain canonical internally.</Text>
-        <ActionButton
-          label={preferences.massUnit === 'g' ? 'Grams selected' : 'Use grams'}
-          tone="secondary"
-          onPress={() => setPreferences((current) => ({ ...current, massUnit: 'g' }))}
-        />
-        <ActionButton
-          label={preferences.massUnit === 'oz' ? 'Ounces selected' : 'Use ounces'}
-          tone="secondary"
-          onPress={() => setPreferences((current) => ({ ...current, massUnit: 'oz' }))}
-        />
+        <Text accessibilityRole="header" allowFontScaling style={[typography.title3, { color: colors.textPrimary }]}>Logging units</Text>
+        <Text allowFontScaling style={[typography.body, { color: colors.textSecondary }]}>This candidate enters food quantities in grams. Ounce entry is not enabled yet.</Text>
       </Surface>
 
       <View style={{ gap: spacing.sm }}>
-        <Text allowFontScaling style={[typography.title3, { color: colors.textPrimary }]}>Daily goals</Text>
+        <Text accessibilityRole="header" allowFontScaling style={[typography.title3, { color: colors.textPrimary }]}>Daily goals (optional)</Text>
         <Text allowFontScaling style={[typography.body, { color: colors.textSecondary }]}>
-          {activeGoalCount === 0 ? 'No goals selected. Tracking still works.' : `${activeGoalCount} active goal${activeGoalCount === 1 ? '' : 's'}.`}
+          {activeGoalCount === 0 ? 'No goals selected. You can start tracking now.' : `${activeGoalCount} active goal${activeGoalCount === 1 ? '' : 's'}.`}
         </Text>
         {goalSetupDefinitions.map((definition) => {
           const draft = drafts.find((value) => value.nutrientCode === definition.nutrientCode);
@@ -211,10 +215,10 @@ export default function OnboardingScreen() {
         Camera and other permissions are requested only when you use features that need them. Advanced micronutrients stay out of initial setup.
       </Text>
       {message ? (
-        <Text accessibilityLiveRegion="assertive" allowFontScaling selectable style={[typography.body, { color: colors.destructive }]}>{message}</Text>
+        <Text accessibilityRole="alert" accessibilityLiveRegion="assertive" allowFontScaling selectable style={[typography.body, { color: colors.destructive }]}>{message}</Text>
       ) : null}
       <ActionButton label={saving ? 'Saving…' : editingExisting ? 'Save changes' : 'Start tracking'} onPress={() => void save()} disabled={!service || saving} />
-      {!editingExisting ? <ActionButton label="Skip goals for now" tone="secondary" onPress={() => void skip()} disabled={!service || saving} /> : null}
+      {!editingExisting ? <ActionButton label="Start without goals" tone="secondary" onPress={() => void skip()} disabled={!service || saving} /> : null}
     </ScrollView>
   );
 }

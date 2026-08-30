@@ -9,8 +9,19 @@
     "android": "expo start --android",
     "web": "expo start --web",
     "typecheck": "tsc --noEmit",
-    "lint": "eslint .",
-    "test": "tsx --test tests/*.test.ts tests/*.test.mjs"
+    "lint": "eslint . --ignore-pattern 'services/usda-proxy/dist/**'",
+    "test": "npm run test:runtime",
+    "test:runtime": "tsx --test tests/*.test.ts tests/*.test.mjs",
+    "quality:runtime": "npm run typecheck && npm run lint && npm run test:runtime",
+    "quality:expo": "expo install --check && npx --yes expo-doctor@1.20.4",
+    "quality:usda": "python3 -m unittest discover -s scripts/usda-core -p 'test_*.py' && python3 -c \"import hashlib,json,pathlib,sqlite3; db=pathlib.Path('assets/usda/meat-usda-core.sqlite'); manifest=json.loads(pathlib.Path('assets/usda/manifest.json').read_text(encoding='utf-8')); assert db.stat().st_size == manifest['sqlite']['bytes']; assert hashlib.sha256(db.read_bytes()).hexdigest() == manifest['sqlite']['sha256']; connection=sqlite3.connect('file:' + str(db) + '?mode=ro', uri=True); counts={'foods': connection.execute('SELECT count(*) FROM foods').fetchone()[0], 'fts_rows': connection.execute('SELECT count(*) FROM foods_fts').fetchone()[0], 'nutrient_values': connection.execute('SELECT count(*) FROM nutrient_values').fetchone()[0], 'portions': connection.execute('SELECT count(*) FROM portions').fetchone()[0]}; assert counts == manifest['record_counts']; assert connection.execute('PRAGMA integrity_check').fetchone() == ('ok',); assert connection.execute('PRAGMA foreign_key_check').fetchall() == []; assert connection.execute('SELECT count(*) FROM foods WHERE data_type = ?', ('Branded',)).fetchone()[0] == 0; assert connection.execute('SELECT count(*) FROM foods_fts WHERE foods_fts MATCH ?', ('chicken*',)).fetchone()[0] > 0; connection.close()\"",
+    "quality:proxy": "npm --prefix services/usda-proxy run check",
+    "quality:ios-export": "expo export --platform ios --output-dir /tmp/meat-expo-ios-export --clear",
+    "quality": "npm run quality:runtime && npm run quality:expo && npm run quality:usda && npm run quality:proxy",
+    "quality:all": "npm run quality && npm run quality:ios-export",
+    "proxy:install": "npm --prefix services/usda-proxy ci --ignore-scripts",
+    "proxy:dev": "npm --prefix services/usda-proxy run dev",
+    "usda:rebuild": "python3 scripts/usda-core/generate.py"
   },
   "dependencies": {
     "expo": "~57.0.9",

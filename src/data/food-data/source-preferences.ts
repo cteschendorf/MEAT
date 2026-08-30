@@ -1,6 +1,7 @@
 import type { SQLiteDatabase } from 'expo-sqlite';
+import type { FoodSourceId } from '@/domain/food/source';
 
-export type FoodSourceId = 'personal' | 'usda-local' | 'usda-fdc' | 'open-food-facts';
+export type { FoodSourceId } from '@/domain/food/source';
 
 export interface FoodSourcePreference {
   sourceId: FoodSourceId;
@@ -8,13 +9,13 @@ export interface FoodSourcePreference {
   priority: number;
 }
 
-export const foodSourceMetadata: ReadonlyArray<{
+export const foodSourceMetadata: readonly {
   id: FoodSourceId;
   name: string;
   detail: string;
-}> = [
+}[] = [
   { id: 'personal', name: 'My foods', detail: 'Foods you create and foods learned from your own history.' },
-  { id: 'usda-local', name: 'USDA — on device', detail: 'Offline common-food corpus derived from FoodData Central.' },
+  { id: 'usda-core', name: 'USDA — on device', detail: 'Offline Foundation, FNDDS, and SR Legacy foods from FoodData Central.' },
   { id: 'usda-fdc', name: 'USDA — online', detail: 'Free FoodData Central network results for long-tail foods.' },
   { id: 'open-food-facts', name: 'Open Food Facts', detail: 'Independent packaged-food/barcode source kept separate for ODbL compliance.' },
 ];
@@ -22,7 +23,7 @@ export const foodSourceMetadata: ReadonlyArray<{
 export class FoodSourcePreferenceStore {
   constructor(private readonly db: SQLiteDatabase) {}
 
-  async list(): Promise<ReadonlyArray<FoodSourcePreference>> {
+  async list(): Promise<readonly FoodSourcePreference[]> {
     const rows = await this.db.getAllAsync<{ source_id: FoodSourceId; enabled: number; priority: number }>(
       'SELECT source_id, enabled, priority FROM food_source_preferences ORDER BY priority ASC',
     );

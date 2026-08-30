@@ -100,7 +100,9 @@ export class OnboardingSetupService {
 
   async save(input: OnboardingSetupInput, now: ISODateTime): Promise<void> {
     const goals = buildNutritionGoals(input.goals, now);
-    await this.preferences.save(input.preferences, now);
+    // Batch 3 quantity inputs are intentionally grams-only. Keep the stored
+    // preference aligned with the UI until ounce-aware entry ships end to end.
+    await this.preferences.save({ ...input.preferences, massUnit: 'g' }, now);
     for (const goal of goals) await this.goals.save(goal);
     await this.preferences.markOnboardingComplete(now);
   }

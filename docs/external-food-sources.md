@@ -1,9 +1,23 @@
 # External food-source policy
 
-Resolution order: personal/local first, then free/open network providers, then OCR/manual creation, with AI estimate only as an explicit low-confidence fallback.
+Discovery considers enabled sources independently in this order: personal foods, the bundled USDA core, USDA online, and Open Food Facts. Results stay grouped by provider and retain stable source-scoped IDs. MEAT does not merge records or suppress one provider merely because another provider returned a similar food.
 
-USDA FoodData Central is the preferred network source. Its data is CC0; API access uses a free data.gov key that must stay out of source control.
+## USDA online
 
-Open Food Facts is an optional user-driven barcode fallback. Its database is ODbL, so MEAT keeps OFF-derived cache entries in the provider-specific `external_food_cache`, not in the combined USDA corpus. The app must identify itself with a custom User-Agent, respect rate limits, provide required attribution, and revisit ODbL obligations before any bulk import or redistribution. Product images are outside this MVP integration.
+The app calls the read-only Cloudflare Worker at `https://api.meatnutrition.app`; it does not call FoodData Central with an embedded API key. The Worker exposes versioned health, search, and food-detail routes and holds the data.gov credential only in the Cloudflare secret `USDA_FDC_API_KEY`. Workers Logs and fetch invocation logging are explicitly disabled so raw `?q=` values are not retained, client responses are `private, no-store`, and only hashed internal cache keys are stored.
 
-External outages/rate limits are non-fatal. The resolver falls through and lets manual/OCR logging continue. Ordinary free-core logging must not depend on a paid per-query food API without an explicit future product decision.
+For local app testing, `EXPO_PUBLIC_USDA_PROXY_URL` may override the public proxy base URL. It is not a place for a secret. Worker development lives under `services/usda-proxy/`; `npm run quality:proxy` typechecks and tests it without deploying, creating a secret, or changing the custom domain.
+
+USDA online responses are stored only in `usda-fdc-cache.db`. Cached responses retain freshness metadata and may be returned as stale fallback when the network is unavailable.
+
+## Open Food Facts
+
+Open Food Facts is an optional source with its own ODbL cache and attribution boundary. Current plain-text searches submit the query to the legacy `/cgi/search.pl` endpoint. Barcode lookup uses the v3 `/api/v3/product/{barcode}` endpoint. Requests identify the app, respect provider limits, and validate provider responses.
+
+OFF-derived responses live only in `open-food-facts-cache.db`; they are not copied into the USDA corpus or merged with USDA records. Product images and bulk redistribution remain outside this integration.
+
+## Failure behavior
+
+Provider successes, misses, throttles, invalid responses, and network errors remain independent. One source's error must not discard another source's result. Expired cache entries can provide a clearly marked stale fallback.
+
+For barcode discovery, an unknown result is final only after every enabled barcode-capable provider has returned a definite miss. An outage or indeterminate provider response is not equivalent to “product not found.” Manual food creation remains available and carries the scanned barcode forward.

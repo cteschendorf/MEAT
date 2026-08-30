@@ -137,3 +137,30 @@ test('rounds only for display', () => {
   assert.equal(roundNutritionForDisplay('energy-kcal', 123.6), 124);
   assert.equal(roundNutritionForDisplay('protein-g', 12.345), 12.3);
 });
+
+test('calculation rejects corrupt negative and non-finite nutrition data', () => {
+  assert.throws(
+    () => scaleNutritionFacts({
+      basisGrams: 100,
+      nutrients: [{ nutrient: protein, state: 'known', value: -1 }],
+    }, 50),
+    /finite nonnegative nutrition value/,
+  );
+  assert.throws(
+    () => scaleNutritionFacts({
+      basisGrams: 100,
+      nutrients: [{ nutrient: protein, state: 'known', value: Number.POSITIVE_INFINITY }],
+    }, 50),
+    /finite nonnegative nutrition value/,
+  );
+  assert.throws(
+    () => scaleNutritionFacts({ basisGrams: 100, nutrients: [] }, Number.POSITIVE_INFINITY),
+    /finite nonnegative/,
+  );
+  assert.throws(
+    () => aggregateNutritionFacts([{
+      nutrients: [{ nutrient: protein, state: 'known', value: -1 }],
+    }]),
+    /finite nonnegative nutrition value/,
+  );
+});

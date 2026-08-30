@@ -3,7 +3,7 @@ import type { ISODate, MealId } from '@/domain/shared/ids';
 
 export interface DailyNutritionSummary {
   date: ISODate;
-  mealIds: ReadonlyArray<MealId>;
-  totals: ReadonlyArray<NutrientValue>;
+  mealIds: readonly MealId[];
+  totals: readonly NutrientValue[];
   complete: boolean;
 }

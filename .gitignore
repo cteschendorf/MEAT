@@ -3,6 +3,7 @@ node_modules/
 dist/
 web-build/
 coverage/
+work/
 .env
 .env.*
 !.env.example

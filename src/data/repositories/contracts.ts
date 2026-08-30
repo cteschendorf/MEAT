@@ -39,6 +39,11 @@ export interface FavoriteFoodRepository {
   setFavorite(foodId: FoodId, favorite: boolean, updatedAt: string): Promise<void>;
 }
 
+export interface FoodReferenceRepository {
+  listKnownIds(limit?: number): Promise<readonly FoodId[]>;
+  touch(foodId: FoodId, updatedAt: string): Promise<void>;
+}
+
 export interface UserPreferencesRepository {
   get(): Promise<UserPreferences | null>;
   save(preferences: UserPreferences, updatedAt: string): Promise<void>;

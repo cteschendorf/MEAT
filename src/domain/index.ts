@@ -1,4 +1,5 @@
 export * from '@/domain/food/food';
+export * from '@/domain/food/source';
 export * from '@/domain/goals/goal';
 export * from '@/domain/history/daily-nutrition-summary';
 export * from '@/domain/meals/meal';

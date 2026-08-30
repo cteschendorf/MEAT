@@ -11,16 +11,37 @@ permissions:
 jobs:
   quality:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 25
+    env:
+      CI: 1
+      EXPO_NO_TELEMETRY: 1
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - run: npm install --ignore-scripts
-      - run: npm run typecheck
-      - run: npm run lint
-      - run: npm test
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            services/usda-proxy/package-lock.json
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install app dependencies
+        run: npm ci --ignore-scripts
+      - name: Install USDA proxy dependencies
+        run: npm run proxy:install
+      - name: Root runtime suite
+        run: npm run quality:runtime
+      - name: Expo SDK dependency checks
+        run: npm run quality:expo
+      - name: Deterministic USDA core verification
+        run: npm run quality:usda
+      - name: Cloudflare USDA proxy check
+        run: npm run quality:proxy
+      - name: Local iOS JavaScript export
+        run: npm run quality:ios-export
 
-# IMPORTANT: This workflow intentionally contains no automated remote build step.
-# EAS builds require explicit user approval for each individual build.
+# IMPORTANT: This workflow stops at local/static verification and a local Expo
+# iOS JavaScript export. It contains no signing, submission, or remote build step.
+# Every EAS build still requires explicit approval for that individual build.
