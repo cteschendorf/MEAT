@@ -568,7 +568,13 @@ export default function MealsRecipesScreen() {
           <ActionButton label="Add all items to event" onPress={() => void addSavedMeal(savedMeal)} disabled={busy} />
           <ActionButton label="Duplicate" tone="secondary" onPress={() => void duplicateSavedMeal(savedMeal)} disabled={busy} />
           <ActionButton label="Edit" tone="secondary" onPress={() => editSavedMeal(savedMeal)} disabled={busy} />
-          <ActionButton label="Delete saved meal" tone="destructive" onPress={() => confirmDeleteSavedMeal(savedMeal)} disabled={busy} />
+          <ActionButton
+            accessibilityLabel={`Delete saved meal ${savedMeal.name}`}
+            label="Delete saved meal"
+            tone="destructive"
+            onPress={() => confirmDeleteSavedMeal(savedMeal)}
+            disabled={busy}
+          />
         </Surface>
       ))}
 
@@ -607,7 +613,13 @@ export default function MealsRecipesScreen() {
             <ActionButton label="Add servings to event" onPress={() => void addRecipe(recipe)} disabled={busy} />
             <ActionButton label="Duplicate" tone="secondary" onPress={() => void duplicateRecipe(recipe)} disabled={busy} />
             <ActionButton label="Edit" tone="secondary" onPress={() => editRecipe(recipe)} disabled={busy} />
-            <ActionButton label="Delete recipe" tone="destructive" onPress={() => confirmDeleteRecipe(recipe)} disabled={busy} />
+            <ActionButton
+              accessibilityLabel={`Delete recipe ${recipe.name}`}
+              label="Delete recipe"
+              tone="destructive"
+              onPress={() => confirmDeleteRecipe(recipe)}
+              disabled={busy}
+            />
           </Surface>
         );
       })}

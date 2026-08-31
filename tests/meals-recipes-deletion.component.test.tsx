@@ -83,7 +83,7 @@ describe('saved meal and recipe deletion confirmation', () => {
     const screen = await render(<MealsRecipesScreen />);
     await screen.findByText(savedMeal.name);
 
-    await fireEvent.press(screen.getByRole('button', { name: 'Delete saved meal' }));
+    await fireEvent.press(screen.getByRole('button', { name: `Delete saved meal ${savedMeal.name}` }));
 
     expect(deleteSavedMeal).not.toHaveBeenCalled();
     expect(alert).toHaveBeenCalledWith(
@@ -116,7 +116,7 @@ describe('saved meal and recipe deletion confirmation', () => {
     const screen = await render(<MealsRecipesScreen />);
     await screen.findByText(recipe.name);
 
-    await fireEvent.press(screen.getByRole('button', { name: 'Delete recipe' }));
+    await fireEvent.press(screen.getByRole('button', { name: `Delete recipe ${recipe.name}` }));
 
     expect(deleteRecipe).not.toHaveBeenCalled();
     expect(alert).toHaveBeenCalledWith(
