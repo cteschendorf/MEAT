@@ -13,3 +13,7 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
+
+# Python bytecode from the USDA asset scripts
+__pycache__/
+*.pyc
