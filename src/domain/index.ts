@@ -5,6 +5,7 @@ export * from '@/domain/history/daily-nutrition-summary';
 export * from '@/domain/meals/meal';
 export * from '@/domain/meals/saved-meal';
 export * from '@/domain/media/media';
+export * from '@/domain/nutrition/measurement';
 export * from '@/domain/nutrition/nutrients';
 export * from '@/domain/preferences/user-preferences';
 export * from '@/domain/recipes/recipe';
