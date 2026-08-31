@@ -2,6 +2,7 @@ import { openDatabaseAsync, type SQLiteDatabase } from 'expo-sqlite';
 
 import { migrateDatabase } from '@/data/sqlite/migrations';
 import { retryableSingleFlight } from '@/data/sqlite/single-flight';
+import type { TransactionRunner } from '@/data/repositories/contracts';
 
 export const DATABASE_NAME = 'meat.db';
 
@@ -29,4 +30,12 @@ export async function withAtomicWrite<T>(
   }
 
   return result;
+}
+
+export class SqliteTransactionRunner implements TransactionRunner {
+  constructor(private readonly db: SQLiteDatabase) {}
+
+  run<T>(operation: () => Promise<T>): Promise<T> {
+    return withAtomicWrite(this.db, operation);
+  }
 }

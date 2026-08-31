@@ -46,6 +46,18 @@ Active data is split by purpose and license:
 
 The private store does not become a combined redistribution database. It holds personal records and stable references to provider records; provider payloads remain in the appropriate source asset/cache.
 
+## Meal-event and media boundary
+
+`Meal` is the only timeline entity. One confirmed composer draft becomes one atomic, timestamped event containing one or more foods. Separate confirmations are never grouped by time proximity. `Meal.title`, `caption`, `location`, and ordered `mediaIds` are optional context; only food items participate in deterministic nutrition totals.
+
+The composer persists a selected provider record before referencing it, then writes all meal items in one private transaction. Edit mode keeps the same meal ID and creation time, so changing `occurredAt` moves an event between local days without duplicating it.
+
+Photos are handled by a platform adapter under `src/platform/media/`. Selected images are re-encoded as JPEG at quality 0.85 with a 2048px maximum long edge, checked for EXIF, and staged in the cache until confirmation. Confirmation promotes files to the app document sandbox before attaching their media rows. Rollback, cancellation, orphan cleanup, private-data deletion, and the ten-second meal-deletion Undo window coordinate database and file ownership explicitly. Location is manual text only; there is no GPS, geocoding, location permission, upload, or inference in this candidate.
+
+## Navigation boundary
+
+The root stack owns hidden utility routes such as the composer, barcode scanner, event detail, and deletion Undo. Today, Journal, Friends, and Me live in nested tab stacks. Mutation routes prevent native/header removal while a write is active and unwind to an existing destination instead of creating duplicate tab or detail routes.
+
 ## AI boundary
 
 AI interprets ambiguous inputs and proposes structured data. Deterministic software validates, resolves trusted nutrition records, converts units, performs arithmetic, and persists confirmed results.

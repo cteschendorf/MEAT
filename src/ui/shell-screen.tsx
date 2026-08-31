@@ -1,19 +1,30 @@
 import type { ReactNode } from 'react';
 import { ScrollView, Text, View } from 'react-native';
 
+import { spacing, typography } from '@/ui/theme/tokens';
+import { useThemeColors } from '@/ui/theme/use-theme';
+
 type ShellScreenProps = {
   title: string;
   children?: ReactNode;
 };
 
 export function ShellScreen({ title, children }: ShellScreenProps) {
+  const colors = useThemeColors();
+
   return (
     <ScrollView
       contentInsetAdjustmentBehavior="automatic"
-      contentContainerStyle={{ padding: 24, gap: 16 }}
+      style={{ backgroundColor: colors.background }}
+      contentContainerStyle={{ flexGrow: 1, padding: spacing.xl, gap: spacing.lg }}
     >
-      <View style={{ gap: 8 }}>
-        <Text selectable style={{ fontSize: 28, fontWeight: '700' }}>
+      <View style={{ gap: spacing.sm }}>
+        <Text
+          accessibilityRole="header"
+          allowFontScaling
+          selectable
+          style={[typography.largeTitle, { color: colors.textPrimary }]}
+        >
           {title}
         </Text>
         {children}

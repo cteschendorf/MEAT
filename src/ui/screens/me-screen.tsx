@@ -3,7 +3,7 @@ import { Text } from 'react-native';
 
 import { ActionButton, ShellScreen, spacing, Surface, typography, useThemeColors } from '@/ui';
 
-export default function MeScreen() {
+export function MeScreen() {
   const router = useRouter();
   const colors = useThemeColors();
 
@@ -29,3 +29,5 @@ export default function MeScreen() {
     </ShellScreen>
   );
 }
+
+export default MeScreen;

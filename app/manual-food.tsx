@@ -8,14 +8,17 @@ import { ExclusiveActionGate } from '@/services/actions/exclusive-action';
 import { normalizeRetailBarcode } from '@/services/logging/source-aware-barcode';
 import type { ManualFoodInput } from '@/services/logging/food-logging';
 import { ActionButton, Surface, spacing, typography, useThemeColors } from '@/ui';
+import { addPersonalFoodToComposer } from '@/ui/meal-composer-entry';
+import { useMutationRouteGuard } from '@/ui/navigation/use-mutation-route-guard';
 
 const numberOrUndefined = (value: string) => (value.trim() === '' ? undefined : Number(value));
 
 export default function ManualFoodScreen() {
   const colors = useThemeColors();
   const router = useRouter();
-  const params = useLocalSearchParams<{ barcode?: string }>();
+  const params = useLocalSearchParams<{ barcode?: string; draftId?: string }>();
   const initialBarcode = typeof params.barcode === 'string' ? params.barcode : '';
+  const draftId = typeof params.draftId === 'string' ? params.draftId : undefined;
   const [services, setServices] = useState<AppServices | null>(null);
   const [name, setName] = useState('');
   const [barcode, setBarcode] = useState(initialBarcode);
@@ -28,6 +31,10 @@ export default function ManualFoodScreen() {
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const saveGate = useRef(new ExclusiveActionGate()).current;
+  const queueRouteExit = useMutationRouteGuard(
+    saving,
+    'Please wait while this food is saved and added.',
+  );
 
   useEffect(() => {
     let active = true;
@@ -81,20 +88,29 @@ export default function ManualFoodScreen() {
           ? { ...created, barcode: normalizedBarcode, updatedAt: now }
           : created;
 
-        // Store the barcode-bearing personal record before logging so it remains
-        // available to search and future scans even if meal creation fails.
+        // Store the barcode-bearing personal record before adding it so the food
+        // remains searchable and future scans can find it if the draft is canceled.
         await services.personalFoods.save(food);
         try {
-          await services.logging.logFood(food, servingGrams, now);
+          const result = await addPersonalFoodToComposer(
+            services,
+            draftId,
+            food,
+            servingGrams,
+            now,
+          );
+          queueRouteExit(() => router.dismissTo({
+            pathname: '/log-food',
+            params: { draftId: result.session.draft.id },
+          }));
         } catch (error) {
           setMessage(
-            `Food saved for later, but it could not be logged: ${
-              error instanceof Error ? error.message : 'Please try logging it again.'
+            `Food saved for later, but it could not be added to this event: ${
+              error instanceof Error ? error.message : 'Please try adding it again.'
             }`,
           );
           return;
         }
-        router.replace('/');
       } catch (error) {
         setMessage(error instanceof Error ? error.message : 'Unable to save food.');
       } finally {
@@ -142,7 +158,7 @@ export default function ManualFoodScreen() {
         {field('Fat grams per serving', fat, setFat)}
         {field('Fiber grams per serving', fiber, setFiber)}
         <Text allowFontScaling selectable style={[typography.caption, { color: colors.textSecondary }]}>Leave an unknown nutrient blank. A blank value is not stored as zero. A saved barcode stays with this local food for future scans.</Text>
-        <ActionButton label={saving ? 'Saving…' : 'Save and log'} onPress={() => void save()} disabled={!services || saving || !name.trim()} />
+        <ActionButton label={saving ? 'Saving and adding…' : 'Save and add'} onPress={() => void save()} disabled={!services || saving || !name.trim()} />
       </Surface>
       {message ? <Text accessibilityRole="alert" accessibilityLiveRegion="assertive" selectable style={[typography.body, { color: colors.destructive }]}>{message}</Text> : null}
     </ScrollView>

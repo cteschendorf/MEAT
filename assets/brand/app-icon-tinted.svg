@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+<defs><linearGradient id="iconBackground" x1="90" y1="60" x2="930" y2="980" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#707070"/><stop offset="1" stop-color="#242424"/></linearGradient><radialGradient id="iconLight" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(250 175) rotate(42) scale(590)"><stop stop-color="#FFFFFF" stop-opacity="0.10"/><stop offset="1" stop-color="#FFFFFF" stop-opacity="0"/></radialGradient></defs><rect width="1024" height="1024" fill="url(#iconBackground)"/><rect width="1024" height="1024" fill="url(#iconLight)"/><g transform="translate(90 74) scale(1.65)">
+  <title id="title">MEAT monochrome T-bone mark</title>
+  <desc id="description">A single-color T-bone steak silhouette.</desc>
+  <path
+    fill="#FFFFFF"
+    fill-rule="evenodd"
+    d="M255 57C221 38 174 37 136 50C91 65 64 100 60 144C56 191 73 240 101 289C130 340 170 389 214 433C236 455 259 474 282 462C307 448 312 417 314 388C318 345 333 311 360 284C391 253 428 228 446 189C465 147 456 106 424 80C391 53 341 51 299 68C281 76 270 66 255 57ZM168 101C189 91 215 93 240 105C263 116 284 119 310 107C335 95 355 97 363 110C371 123 362 139 347 147C322 160 297 159 277 151L279 374C280 400 272 421 257 424C242 427 232 410 236 388L247 155C225 158 203 152 182 142C163 133 153 119 158 109C160 105 163 103 168 101Z"
+  />
+</g>
+</svg>

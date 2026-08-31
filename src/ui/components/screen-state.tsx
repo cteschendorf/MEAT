@@ -14,6 +14,7 @@ export function ScreenState({ title, message, role = 'status' }: ScreenStateProp
 
   return (
     <View
+      accessibilityRole={role === 'alert' ? 'alert' : undefined}
       accessibilityLiveRegion={role === 'alert' ? 'assertive' : 'polite'}
       accessible
       style={{ gap: spacing.xs, padding: spacing.lg }}

@@ -148,6 +148,10 @@ class MemoryMealRepository implements MealRepository {
   async listByDateRange() {
     return [...this.values.values()];
   }
+
+  async listRecent(limit = 250) {
+    return [...this.values.values()].slice(0, limit);
+  }
 }
 
 test('FoodRef helpers preserve provider identity while legacy food IDs still resolve unchanged', () => {

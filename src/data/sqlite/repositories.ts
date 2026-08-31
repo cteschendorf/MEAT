@@ -1,13 +1,14 @@
 import type { SQLiteDatabase } from 'expo-sqlite';
 
-import type { Food, Meal, NutritionGoal, Recipe, SavedMeal, UserPreferences } from '@/domain';
-import type { FoodId, MealId, RecipeId, SavedMealId } from '@/domain/shared/ids';
+import type { Food, Meal, MediaAsset, NutritionGoal, Recipe, SavedMeal, UserPreferences } from '@/domain';
+import type { FoodId, ISODateTime, MealId, MediaId, RecipeId, SavedMealId } from '@/domain/shared/ids';
 import type {
   FavoriteFoodRepository,
   FoodReferenceRepository,
   FoodRepository,
   GoalRepository,
   MealRepository,
+  MediaRepository,
   PrivateDataRepository,
   RecipeRepository,
   SavedMealRepository,
@@ -17,9 +18,41 @@ import type {
 type PayloadRow = { payload: string };
 type FavoriteRow = { food_id: FoodId; updated_at: string };
 type PreferencesRow = { payload: string; onboarding_completed: number; updated_at: string };
+type MediaRow = {
+  id: MediaId;
+  meal_id: MealId | null;
+  kind: MediaAsset['kind'];
+  storage: MediaAsset['storage'];
+  uri: string;
+  mime_type: string;
+  width: number;
+  height: number;
+  byte_size: number;
+  created_at: ISODateTime;
+  updated_at: ISODateTime;
+};
 
 function parsePayload<T>(row: PayloadRow | null): T | null {
   return row ? (JSON.parse(row.payload) as T) : null;
+}
+
+function mediaAssetFromRow(row: MediaRow): MediaAsset {
+  return {
+    id: row.id,
+    kind: row.kind,
+    storage: row.storage,
+    uri: row.uri,
+    mimeType: row.mime_type,
+    width: row.width,
+    height: row.height,
+    byteSize: row.byte_size,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+function placeholders(length: number): string {
+  return new Array(length).fill('?').join(', ');
 }
 
 export class SqliteFoodRepository implements FoodRepository {
@@ -89,7 +122,9 @@ export class SqliteMealRepository implements MealRepository {
 
   async listByDateRange(start: string, end: string): Promise<readonly Meal[]> {
     const rows = await this.db.getAllAsync<PayloadRow>(
-      'SELECT payload FROM meals WHERE occurred_at >= ? AND occurred_at < ? ORDER BY occurred_at DESC',
+      `SELECT payload FROM meals
+       WHERE occurred_at >= ? AND occurred_at < ?
+       ORDER BY occurred_at ASC, json_extract(payload, '$.createdAt') ASC, id ASC`,
       start,
       end,
     );
@@ -97,8 +132,146 @@ export class SqliteMealRepository implements MealRepository {
   }
 
   async listRecent(limit = 250): Promise<readonly Meal[]> {
-    const rows = await this.db.getAllAsync<PayloadRow>('SELECT payload FROM meals ORDER BY occurred_at DESC LIMIT ?', limit);
+    const rows = await this.db.getAllAsync<PayloadRow>(
+      `SELECT payload FROM meals
+       ORDER BY occurred_at DESC, json_extract(payload, '$.createdAt') DESC, id DESC
+       LIMIT ?`,
+      limit,
+    );
     return rows.map((row) => JSON.parse(row.payload) as Meal);
+  }
+}
+
+export class SqliteMediaRepository implements MediaRepository {
+  constructor(private readonly db: SQLiteDatabase) {}
+
+  async getById(id: MediaId): Promise<MediaAsset | null> {
+    const row = await this.db.getFirstAsync<MediaRow>('SELECT * FROM media_assets WHERE id = ?', id);
+    return row ? mediaAssetFromRow(row) : null;
+  }
+
+  async list(limit = 1_000): Promise<readonly MediaAsset[]> {
+    const rows = await this.db.getAllAsync<MediaRow>(
+      'SELECT * FROM media_assets ORDER BY created_at ASC, id ASC LIMIT ?',
+      limit,
+    );
+    return rows.map(mediaAssetFromRow);
+  }
+
+  async listByIds(ids: readonly MediaId[]): Promise<readonly MediaAsset[]> {
+    if (ids.length === 0) return [];
+    const rows = await this.db.getAllAsync<MediaRow>(
+      `SELECT * FROM media_assets WHERE id IN (${placeholders(ids.length)})`,
+      ...ids,
+    );
+    const byId = new Map(rows.map((row) => [row.id, mediaAssetFromRow(row)]));
+    return ids.flatMap((id) => {
+      const asset = byId.get(id);
+      return asset ? [asset] : [];
+    });
+  }
+
+  async listByMealId(mealId: MealId): Promise<readonly MediaAsset[]> {
+    const rows = await this.db.getAllAsync<MediaRow>(
+      'SELECT * FROM media_assets WHERE meal_id = ? ORDER BY created_at ASC, id ASC',
+      mealId,
+    );
+    return rows.map(mediaAssetFromRow);
+  }
+
+  async listUnattachedBefore(cutoff: ISODateTime, limit = 100): Promise<readonly MediaAsset[]> {
+    const rows = await this.db.getAllAsync<MediaRow>(
+      `SELECT * FROM media_assets
+       WHERE meal_id IS NULL AND created_at < ?
+       ORDER BY created_at ASC, id ASC LIMIT ?`,
+      cutoff,
+      limit,
+    );
+    return rows.map(mediaAssetFromRow);
+  }
+
+  async save(asset: MediaAsset): Promise<void> {
+    await this.db.runAsync(
+      `INSERT INTO media_assets (
+         id, meal_id, kind, storage, uri, mime_type, width, height, byte_size, created_at, updated_at
+       ) VALUES (?, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+       ON CONFLICT(id) DO UPDATE SET
+         kind = excluded.kind,
+         storage = excluded.storage,
+         uri = excluded.uri,
+         mime_type = excluded.mime_type,
+         width = excluded.width,
+         height = excluded.height,
+         byte_size = excluded.byte_size,
+         created_at = excluded.created_at,
+         updated_at = excluded.updated_at`,
+      asset.id,
+      asset.kind,
+      asset.storage,
+      asset.uri,
+      asset.mimeType,
+      asset.width,
+      asset.height,
+      asset.byteSize,
+      asset.createdAt,
+      asset.updatedAt,
+    );
+  }
+
+  async saveMany(assets: readonly MediaAsset[]): Promise<void> {
+    for (const asset of assets) await this.save(asset);
+  }
+
+  async attachToMeal(ids: readonly MediaId[], mealId: MealId, updatedAt: ISODateTime): Promise<void> {
+    if (ids.length === 0) return;
+    const rows = await this.db.getAllAsync<{ id: MediaId; meal_id: MealId | null }>(
+      `SELECT id, meal_id FROM media_assets WHERE id IN (${placeholders(ids.length)})`,
+      ...ids,
+    );
+    const byId = new Map(rows.map((row) => [row.id, row.meal_id]));
+    for (const id of ids) {
+      if (!byId.has(id)) throw new Error(`Media asset ${id} does not exist.`);
+      const owner = byId.get(id);
+      if (owner && owner !== mealId) throw new Error(`Media asset ${id} belongs to another meal.`);
+    }
+    await this.db.runAsync(
+      `UPDATE media_assets SET meal_id = ?, updated_at = ?
+       WHERE id IN (${placeholders(ids.length)}) AND (meal_id IS NULL OR meal_id = ?)`,
+      mealId,
+      updatedAt,
+      ...ids,
+      mealId,
+    );
+    const attached = await this.db.getAllAsync<{ id: MediaId; meal_id: MealId | null }>(
+      `SELECT id, meal_id FROM media_assets WHERE id IN (${placeholders(ids.length)})`,
+      ...ids,
+    );
+    if (attached.some((row) => row.meal_id !== mealId)) {
+      throw new Error('One or more media assets could not be attached to this meal.');
+    }
+  }
+
+  async detachFromMeal(ids: readonly MediaId[], mealId: MealId, updatedAt: ISODateTime): Promise<void> {
+    if (ids.length === 0) return;
+    await this.db.runAsync(
+      `UPDATE media_assets SET meal_id = NULL, updated_at = ?
+       WHERE meal_id = ? AND id IN (${placeholders(ids.length)})`,
+      updatedAt,
+      mealId,
+      ...ids,
+    );
+  }
+
+  async delete(id: MediaId): Promise<void> {
+    await this.db.runAsync('DELETE FROM media_assets WHERE id = ?', id);
+  }
+
+  async deleteMany(ids: readonly MediaId[]): Promise<void> {
+    if (ids.length === 0) return;
+    await this.db.runAsync(
+      `DELETE FROM media_assets WHERE id IN (${placeholders(ids.length)})`,
+      ...ids,
+    );
   }
 }
 
@@ -263,9 +436,10 @@ export class SqlitePrivateDataRepository implements PrivateDataRepository {
   constructor(private readonly db: SQLiteDatabase) {}
 
   async exportJson(): Promise<string> {
-    const [foods, meals, savedMeals, recipes, goals, favoriteFoods, knownFoodRefs, preferences] = await Promise.all([
+    const [foods, meals, mediaAssets, savedMeals, recipes, goals, favoriteFoods, knownFoodRefs, preferences] = await Promise.all([
       this.db.getAllAsync<PayloadRow>('SELECT payload FROM foods'),
       this.db.getAllAsync<PayloadRow>('SELECT payload FROM meals'),
+      this.db.getAllAsync<MediaRow>('SELECT * FROM media_assets ORDER BY created_at ASC, id ASC'),
       this.db.getAllAsync<PayloadRow>('SELECT payload FROM saved_meals'),
       this.db.getAllAsync<PayloadRow>('SELECT payload FROM recipes'),
       this.db.getAllAsync<PayloadRow>('SELECT payload FROM goals'),
@@ -279,6 +453,7 @@ export class SqlitePrivateDataRepository implements PrivateDataRepository {
     return JSON.stringify({
       foods: foods.map((row) => JSON.parse(row.payload)),
       meals: meals.map((row) => JSON.parse(row.payload)),
+      mediaAssets: mediaAssets.map(mediaAssetFromRow),
       savedMeals: savedMeals.map((row) => JSON.parse(row.payload)),
       recipes: recipes.map((row) => JSON.parse(row.payload)),
       goals: goals.map((row) => JSON.parse(row.payload)),
@@ -297,7 +472,7 @@ export class SqlitePrivateDataRepository implements PrivateDataRepository {
   async deleteAllPrivateData(): Promise<void> {
     await this.db.withTransactionAsync(async () => {
       await this.db.execAsync(
-        'DELETE FROM favorite_food_refs; DELETE FROM known_food_refs; DELETE FROM meals; DELETE FROM saved_meals; DELETE FROM recipes; DELETE FROM goals; DELETE FROM foods; DELETE FROM user_preferences;',
+        'DELETE FROM favorite_food_refs; DELETE FROM known_food_refs; DELETE FROM media_assets; DELETE FROM meals; DELETE FROM saved_meals; DELETE FROM recipes; DELETE FROM goals; DELETE FROM foods; DELETE FROM user_preferences;',
       );
     });
   }

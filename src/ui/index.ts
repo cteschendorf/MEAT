@@ -1,7 +1,12 @@
 export { ActionButton } from '@/ui/components/action-button';
+export { BrandLockup } from '@/ui/components/brand-lockup';
+export { BrandMark } from '@/ui/components/brand-mark';
+export { MealTimeline } from '@/ui/components/meal-timeline';
+export { NutritionDashboard } from '@/ui/components/nutrition-dashboard';
 export { ScreenState } from '@/ui/components/screen-state';
 export { Surface } from '@/ui/components/surface';
 export { ShellScreen } from '@/ui/shell-screen';
-export { brandColors, darkColors, lightColors } from '@/ui/theme/colors';
-export { minimumTouchTarget, radii, spacing, typography } from '@/ui/theme/tokens';
+export * from '@/ui/nutrition-dashboard-model';
+export { brandColors, darkColors, lightColors, type ThemeColors } from '@/ui/theme/colors';
+export { iconSizes, minimumTouchTarget, radii, spacing, typography } from '@/ui/theme/tokens';
 export { useThemeColors } from '@/ui/theme/use-theme';

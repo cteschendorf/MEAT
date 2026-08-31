@@ -1,2 +1,2 @@
 // Native/platform integrations and capability detection live here.
-export {};
+export * from '@/platform/media/local-meal-photo-store';

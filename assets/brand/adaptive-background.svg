@@ -1,0 +1,3 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+<defs><linearGradient id="iconBackground" x1="90" y1="60" x2="930" y2="980" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#6A3B55"/><stop offset="1" stop-color="#3D1C30"/></linearGradient><radialGradient id="iconLight" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(250 175) rotate(42) scale(590)"><stop stop-color="#FFFFFF" stop-opacity="0.10"/><stop offset="1" stop-color="#FFFFFF" stop-opacity="0"/></radialGradient></defs><rect width="1024" height="1024" fill="url(#iconBackground)"/><rect width="1024" height="1024" fill="url(#iconLight)"/>
+</svg>

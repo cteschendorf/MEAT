@@ -4,6 +4,7 @@
     "slug": "meat",
     "version": "0.1.0",
     "orientation": "portrait",
+    "icon": "./assets/brand/app-icon-light.png",
     "scheme": "meat",
     "userInterfaceStyle": "automatic",
     "plugins": [
@@ -11,25 +12,62 @@
       [
         "expo-camera",
         {
-          "cameraPermission": "Allow MEAT to use the camera to scan food barcodes.",
+          "cameraPermission": "Allow MEAT to use the camera to scan food barcodes and add private meal photos.",
+          "microphonePermission": false,
           "recordAudioAndroid": false,
           "barcodeScannerEnabled": true
         }
-      ]
+      ],
+      "expo-image",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Allow MEAT to choose private meal photos from your library.",
+          "cameraPermission": "Allow MEAT to use the camera to scan food barcodes and add private meal photos.",
+          "microphonePermission": false
+        }
+      ],
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#FAF8F6",
+          "image": "./assets/brand/splash-light.png",
+          "imageWidth": 180,
+          "resizeMode": "contain",
+          "dark": {
+            "backgroundColor": "#120D10",
+            "image": "./assets/brand/splash-dark.png"
+          }
+        }
+      ],
+      "@react-native-community/datetimepicker",
+      "expo-font"
     ],
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "com.thingcorp.meat",
       "buildNumber": "1",
+      "icon": {
+        "light": "./assets/brand/app-icon-light.png",
+        "dark": "./assets/brand/app-icon-dark.png",
+        "tinted": "./assets/brand/app-icon-tinted.png"
+      },
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false
       }
     },
     "android": {
-      "package": "com.thingcorp.meat"
+      "package": "com.thingcorp.meat",
+      "icon": "./assets/brand/app-icon-light.png",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/brand/adaptive-foreground.png",
+        "backgroundImage": "./assets/brand/adaptive-background.png",
+        "monochromeImage": "./assets/brand/adaptive-monochrome.png"
+      }
     },
     "web": {
-      "bundler": "metro"
+      "bundler": "metro",
+      "favicon": "./assets/brand/app-icon-light.png"
     },
     "experiments": {
       "typedRoutes": true

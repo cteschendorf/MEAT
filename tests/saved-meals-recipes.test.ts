@@ -91,6 +91,7 @@ class MemoryMealRepository implements MealRepository {
   async save(value: Meal) { this.values.set(value.id, value); }
   async delete(id: MealId) { this.values.delete(id); }
   async listByDateRange() { return [...this.values.values()]; }
+  async listRecent(limit = 250) { return [...this.values.values()].slice(0, limit); }
 }
 
 test('materializes a recipe as an ordinary recipe-kind food for the logging flow', () => {

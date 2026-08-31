@@ -11,10 +11,13 @@ import {
   SqliteFoodRepository,
   SqliteGoalRepository,
   SqliteMealRepository,
+  SqliteMediaRepository,
+  SqlitePrivateDataRepository,
   SqliteRecipeRepository,
   SqliteSavedMealRepository,
   SqliteUserPreferencesRepository,
   transferLegacyProviderFoodSnapshots,
+  SqliteTransactionRunner,
 } from '@/data';
 import { OpenFoodFactsProvider } from '@/data/providers/open-food-facts';
 import { UsdaFdcProxyProvider } from '@/data/providers/usda-fdc-proxy';
@@ -25,6 +28,8 @@ import type {
   FoodSearchOptions,
 } from '@/data/providers/contracts';
 import type { FoodRef, FoodSearchGroup, FoodSourceId } from '@/domain/food/source';
+import type { ISODateTime } from '@/domain/shared/ids';
+import { LocalMealPhotoStore } from '@/platform';
 import {
   CompositeFoodRepository,
   FoodDiscoveryService,
@@ -33,6 +38,11 @@ import {
 import { FoodLoggingService, defaultLocalIdFactory } from '@/services/logging/food-logging';
 import { FoodSuggestionsService } from '@/services/logging/food-suggestions';
 import { RecipeService, SavedMealService } from '@/services/meals/saved-meals';
+import { MealComposerService } from '@/services/meals/meal-composer';
+import { MealHistoryService } from '@/services/meals/meal-history';
+import { PrivateDataLifecycleService } from '@/services/privacy/private-data-lifecycle';
+import { PrivateDataWriteCoordinator } from '@/services/privacy/private-data-write-coordinator';
+import { mealComposerSessions } from '@/ui/meal-composer-session';
 
 class UnavailableFoodProvider implements FoodProvider {
   readonly capabilities: FoodProviderCapabilities;
@@ -81,6 +91,7 @@ export interface AppServices {
   readonly personalFoods: SqliteFoodRepository;
   readonly foods: CompositeFoodRepository;
   readonly meals: SqliteMealRepository;
+  readonly media: SqliteMediaRepository;
   readonly goals: SqliteGoalRepository;
   readonly favorites: SqliteFavoriteFoodRepository;
   readonly preferences: FoodSourcePreferenceStore;
@@ -92,6 +103,11 @@ export interface AppServices {
   readonly suggestions: FoodSuggestionsService;
   readonly recipeService: RecipeService;
   readonly savedMealService: SavedMealService;
+  readonly mealComposer: MealComposerService;
+  readonly mealHistory: MealHistoryService;
+  readonly mealPhotoFiles: LocalMealPhotoStore;
+  readonly privateDataWrites: PrivateDataWriteCoordinator;
+  readonly privateData: PrivateDataLifecycleService;
 }
 
 let servicesPromise: Promise<AppServices> | null = null;
@@ -116,6 +132,11 @@ export function openAppServices(): Promise<AppServices> {
     const database = await openMeatDatabase();
     const personalFoods = new SqliteFoodRepository(database);
     const meals = new SqliteMealRepository(database);
+    const media = new SqliteMediaRepository(database);
+    const mealPhotoFiles = new LocalMealPhotoStore();
+    const privateDataRepository = new SqlitePrivateDataRepository(database);
+    const transactions = new SqliteTransactionRunner(database);
+    const privateDataWrites = new PrivateDataWriteCoordinator();
     const goals = new SqliteGoalRepository(database);
     const favorites = new SqliteFavoriteFoodRepository(database);
     const references = new SqliteFoodReferenceRepository(database);
@@ -157,12 +178,46 @@ export function openAppServices(): Promise<AppServices> {
       meals,
       defaultLocalIdFactory,
     );
+    const mealComposer = new MealComposerService(
+      foods,
+      meals,
+      discovery,
+      defaultLocalIdFactory,
+      media,
+      transactions,
+      privateDataWrites,
+    );
+    const mealHistory = new MealHistoryService(
+      meals,
+      media,
+      defaultLocalIdFactory,
+      mealPhotoFiles,
+      transactions,
+    );
+    const cleanupNow = new Date();
+    const cleanupCutoff = cleanupNow.toISOString() as ISODateTime;
+    try {
+      const retainedMedia = await media.list(2_147_483_647);
+      mealPhotoFiles.cleanup({
+        attachedUris: new Set(retainedMedia.map((asset) => asset.uri)),
+        now: cleanupNow.getTime(),
+        draftMaxAgeMs: 0,
+        orphanGraceMs: 0,
+      });
+      // Composer drafts and the ten-second Undo token are session-local. After
+      // a restart no UI can resume them, so every unattached row/file is an
+      // orphan and can be finalized immediately instead of lingering 24 hours.
+      await mealHistory.cleanupUnattached(cleanupCutoff, 2_147_483_647);
+    } catch {
+      // Cleanup is retryable and must not make otherwise-valid private history unavailable.
+    }
 
     return {
       database,
       personalFoods,
       foods,
       meals,
+      media,
       goals,
       favorites,
       preferences,
@@ -174,6 +229,18 @@ export function openAppServices(): Promise<AppServices> {
       suggestions: new FoodSuggestionsService(meals, foods, favorites),
       recipeService: new RecipeService(recipes, foods),
       savedMealService: new SavedMealService(savedMeals, meals, defaultLocalIdFactory),
+      mealComposer,
+      mealHistory,
+      mealPhotoFiles,
+      privateDataWrites,
+      privateData: new PrivateDataLifecycleService(
+        privateDataRepository,
+        media,
+        mealPhotoFiles,
+        mealHistory,
+        mealComposerSessions,
+        privateDataWrites,
+      ),
     };
   })().catch((error: unknown) => {
     servicesPromise = null;
