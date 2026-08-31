@@ -6,6 +6,8 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   AccessibilityInfo,
   Alert,
+  KeyboardAvoidingView,
+  Platform,
   Pressable,
   ScrollView,
   Text,
@@ -16,7 +18,6 @@ import {
 import type { Food, MealContextInput, MealLocation, MediaAsset } from '@/domain';
 import type {
   FoodCandidate,
-  FoodPortion,
   FoodSearchGroup,
   FoodSourceId,
 } from '@/domain/food/source';
@@ -59,9 +60,13 @@ import {
   useThemeColors,
 } from '@/ui';
 import { FoodResultRowItem } from '@/ui/components/food-result-row';
-import { coreMetricLine } from '@/ui/core-metrics';
+import { FoodDetailSheet } from '@/ui/components/food-detail-sheet';
+import { coreMetricAmount, coreMetricLine, roundCoreMetric } from '@/ui/core-metrics';
 import { buildFoodResultTiers } from '@/ui/food-search-results';
 import { summarizeDraft } from '@/ui/meal-draft-summary';
+import { coreNutrientDisplayOrder } from '@/domain';
+import type { DayStanding } from '@/ui/food-detail-model';
+import { buildTodaySnapshot, type TodayMetric } from '@/services/today/snapshot';
 import {
   mealComposerSessions,
   type MealComposerSession,
@@ -84,6 +89,9 @@ const sourceDefinitions: readonly {
   { id: 'open-food-facts', name: 'Open Food Facts', detail: 'Independent packaged-food records from Open Food Facts.' },
 ];
 
+/** Long enough that a fast typist issues one request, short enough to feel live. */
+const SEARCH_DEBOUNCE_MS = 300;
+
 const sourceNames: Readonly<Record<FoodSourceId, string>> = {
   personal: 'My Foods',
   'usda-core': 'USDA Core',
@@ -102,18 +110,6 @@ interface MealContextPatch {
 
 function sourceForFood(food: Food): FoodSourceId {
   return sourceIdFromFoodId(food.id) ?? 'personal';
-}
-
-function preferredPortion(candidate: FoodCandidate): FoodPortion | undefined {
-  return (
-    candidate.portions.find((portion) => portion.isDefault && (portion.gramWeight ?? 0) > 0) ??
-    candidate.portions.find((portion) => (portion.gramWeight ?? 0) > 0)
-  );
-}
-
-function portionLabel(portion: FoodPortion): string {
-  const grams = portion.gramWeight === undefined ? '' : ` · ${Math.round(portion.gramWeight * 10) / 10} g`;
-  return `${portion.label}${grams}`;
 }
 
 function messageFor(error: unknown, fallback: string): string {
@@ -218,8 +214,9 @@ export function MealComposerScreen() {
   const [suggestions, setSuggestions] = useState<readonly FoodSuggestion[]>([]);
   const [favoriteIds, setFavoriteIds] = useState<ReadonlySet<FoodId>>(new Set());
   const [selected, setSelected] = useState<FoodCandidate | null>(null);
-  const [selectedServingId, setSelectedServingId] = useState<FoodServingId | undefined>();
-  const [grams, setGrams] = useState('100');
+  // What the day already holds, so the sheet can answer "does this fit" before
+  // the food is committed rather than after (THI-307).
+  const [dayMetrics, setDayMetrics] = useState<readonly TodayMetric[]>([]);
   const [pickerMode, setPickerMode] = useState<'date' | 'time' | null>(null);
   const [showContext, setShowContext] = useState(false);
   const [customMealName, setCustomMealName] = useState(false);
@@ -443,13 +440,12 @@ export function MealComposerScreen() {
     });
   }
 
-  async function search(): Promise<void> {
+  async function search(term: string): Promise<void> {
     if (!services) return;
-    const normalized = query.trim();
-    if (normalized.length < 2 || normalized.length > 80) {
-      setMessage('Enter a search term between 2 and 80 characters.');
-      return;
-    }
+    const normalized = term.trim();
+    // Silent, because this now runs as the user types: a half-typed word is not
+    // a mistake to report, it is just not a search yet.
+    if (normalized.length < 2 || normalized.length > 80) return;
 
     const generation = searchGeneration.current + 1;
     searchGeneration.current = generation;
@@ -509,12 +505,58 @@ export function MealComposerScreen() {
     }
   }
 
-  function selectCandidate(candidate: FoodCandidate, portion = preferredPortion(candidate)): void {
+  // Search runs as the user types. The screen used to require pressing a Search
+  // button, and documented that requirement in an accessibility hint rather than
+  // removing it (THI-313). The delay is long enough that a fast typist issues one
+  // request, short enough to feel immediate.
+  useEffect(() => {
+    if (!services) return;
+    const normalized = query.trim();
+    const timer = setTimeout(() => {
+      if (normalized.length < 2) {
+        // Clearing the field clears the results, on the same beat as a search
+        // would have run, so the list never contradicts the box above it.
+        searchGeneration.current += 1;
+        searchController.current?.abort();
+        setSubmittedQuery('');
+        setGroups({});
+        return;
+      }
+      void search(normalized);
+    }, SEARCH_DEBOUNCE_MS);
+    return () => clearTimeout(timer);
+    // `search` is redeclared every render; the query and services are what
+    // actually decide whether a new request is owed.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [query, services]);
+
+  // Opening the sheet is all this does now: quantity and serving live inside it,
+  // so the screen no longer carries a second copy of the portion being edited.
+  function selectCandidate(candidate: FoodCandidate): void {
     setSelected(candidate);
-    setSelectedServingId(portion?.id as FoodServingId | undefined);
-    setGrams(String(portion?.gramWeight ?? 100));
     setMessage(null);
   }
+
+  useEffect(() => {
+    if (!services) return;
+    let active = true;
+    void buildTodaySnapshot(new Date(), {
+      foods: services.foods,
+      meals: services.meals,
+      goals: services.goals,
+    })
+      .then((snapshot) => {
+        if (active) setDayMetrics(snapshot.metrics);
+      })
+      // A missing day total is not a reason to block logging: the sheet falls
+      // back to "no data yet" and the rest of the screen is unaffected.
+      .catch(() => {
+        if (active) setDayMetrics([]);
+      });
+    return () => {
+      active = false;
+    };
+  }, [services]);
 
   async function candidateForFood(food: Food): Promise<FoodCandidate> {
     if (!services) return candidateFromFood(food, sourceForFood(food));
@@ -545,12 +587,15 @@ export function MealComposerScreen() {
     setMessage(`${candidate.food.name} added. Add another food or confirm the event.`);
   }
 
-  async function addSelected(): Promise<void> {
-    if (!selected) return;
-    const gramWeight = Number(grams);
-    await runAction(`add:${selected.food.id}`, async () => {
+  async function addFromSheet(
+    candidate: FoodCandidate,
+    portion: { gramWeight: number; servingId: FoodServingId | undefined; quantity: number },
+  ): Promise<void> {
+    await runAction(`add:${candidate.food.id}`, async () => {
       try {
-        await addCandidate(selected, gramWeight, selectedServingId);
+        // The quantity finally reaches `portionForSelection`, so a serving-based
+        // portion is recorded as "2 x 1 medium breast" rather than a bare weight.
+        await addCandidate(candidate, portion.gramWeight, portion.servingId, portion.quantity);
       } catch (error) {
         setMessage(messageFor(error, 'Unable to add this food.'));
       }
@@ -816,6 +861,51 @@ export function MealComposerScreen() {
     [session, foodById],
   );
 
+  // The day's standing per nutrient, with the draft folded in. The sheet needs
+  // "where am I now" to say "where would this put me", and the draft is part of
+  // now even though it has not been written yet.
+  const dayStandings = useMemo<readonly DayStanding[]>(
+    () =>
+      coreNutrientDisplayOrder.map((code) => {
+        const metric = dayMetrics.find((entry) => entry.code === code);
+        const logged = metric?.state === 'unknown' ? null : metric?.value ?? null;
+        const drafted = coreMetricAmount(draftSummary?.totalFacts ?? null, code);
+        return {
+          code,
+          // A day total that could not be computed stays uncomputed; adding a
+          // known draft amount to an unknown day does not make it known.
+          current: logged === null ? null : logged + (drafted ?? 0),
+          target: metric?.goal?.goal.target ?? null,
+        };
+      }),
+    [dayMetrics, draftSummary],
+  );
+
+  // What the day stands at, previewing the draft that has not been written yet.
+  // This is the "does this fit" answer, and it is worthless if it scrolls away.
+  const runningTotal = useMemo(() => {
+    const protein = dayStandings.find((standing) => standing.code === 'protein-g');
+    const target = protein?.target;
+    const value = protein?.current;
+    const headline = value === null || value === undefined
+      ? '— g protein'
+      : `${roundCoreMetric('protein-g', value)} g protein`;
+    const goalText = target && target.mode === 'minimum' && target.minimum
+      ? ` of ${target.minimum} g`
+      : target && target.mode === 'maximum' && target.maximum
+        ? ` of ${target.maximum} g limit`
+        : '';
+    const items = session?.draft.items.length ?? 0;
+    const detail = items
+      ? `today, including ${items} food${items === 1 ? '' : 's'} not yet saved`
+      : 'today';
+    return {
+      headline: `${headline}${goalText}`,
+      detail,
+      accessibilityLabel: `${headline}${goalText} ${detail}.`,
+    };
+  }, [dayStandings, session]);
+
   // One ranked list rather than four provider boxes; provenance rides on each
   // row so nothing is merged (THI-313).
   const resultTiers = useMemo(
@@ -869,8 +959,6 @@ export function MealComposerScreen() {
     );
   }
 
-
-
   if (!services || !session) {
     return (
       <View style={{ flex: 1, backgroundColor: colors.background }}>
@@ -882,11 +970,45 @@ export function MealComposerScreen() {
   }
 
   return (
-    <ScrollView
-      contentInsetAdjustmentBehavior="automatic"
-      keyboardShouldPersistTaps="handled"
-      contentContainerStyle={{ padding: spacing.md, gap: spacing.md, backgroundColor: colors.background }}
+    <KeyboardAvoidingView
+      // Numeric keypads have no return key, so a field the keyboard covers is a
+      // field with no way out of it (THI-314).
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      style={{ flex: 1, backgroundColor: colors.background }}
     >
+      {/* The running total stays put while foods are chosen. It used to live
+          inside the scroll, so it left the screen at exactly the moment it was
+          useful (THI-307). Protein leads it: this is a protein-first tracker,
+          and the reference app's calorie-first chip is not our answer. */}
+      <View
+        accessible
+        accessibilityLabel={runningTotal.accessibilityLabel}
+        style={{
+          flexDirection: 'row',
+          alignItems: 'center',
+          flexWrap: 'wrap',
+          gap: spacing.sm,
+          paddingHorizontal: spacing.md,
+          paddingVertical: spacing.sm,
+          borderBottomWidth: 1,
+          borderBottomColor: colors.border,
+          backgroundColor: colors.surface,
+        }}
+      >
+        <Text allowFontScaling style={[typography.bodyStrong, { color: colors.protein }]}>
+          {runningTotal.headline}
+        </Text>
+        <Text allowFontScaling style={[typography.caption, { color: colors.textSecondary, flex: 1 }]}>
+          {runningTotal.detail}
+        </Text>
+      </View>
+
+      <ScrollView
+        contentInsetAdjustmentBehavior="automatic"
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
+        contentContainerStyle={{ padding: spacing.md, gap: spacing.md, backgroundColor: colors.background }}
+      >
       <Text accessibilityRole="header" allowFontScaling style={[typography.title1, { color: colors.brandStrong }]}>
         {initialParams.mealId ? 'Edit meal event' : 'Build a meal event'}
       </Text>
@@ -988,17 +1110,16 @@ export function MealComposerScreen() {
         <Text accessibilityRole="header" allowFontScaling style={[typography.title3, { color: colors.textPrimary }]}>Find a food</Text>
         <TextInput
           accessibilityLabel="Search foods"
-          accessibilityHint="Search begins only when you press Search."
+          accessibilityHint="Results update as you type."
           placeholder="Search foods"
           placeholderTextColor={colors.textSecondary}
           value={query}
           onChangeText={setQuery}
           maxLength={80}
-          onSubmitEditing={() => void search()}
+          onSubmitEditing={() => void search(query)}
           returnKeyType="search"
           style={inputStyle}
         />
-        <ActionButton label="Search" disabled={busyAction !== null || query.trim().length < 2} onPress={() => void search()} />
         <ActionButton
           label="Saved meals & recipes"
           tone="secondary"
@@ -1061,46 +1182,6 @@ export function MealComposerScreen() {
             <ScreenState title="No matches" message="Try a different word, or create the food manually." />
           )}
         </View>
-      ) : null}
-
-      {selected ? (
-        <Surface tone="muted">
-          <Text accessibilityRole="header" allowFontScaling style={[typography.bodyStrong, { color: colors.textPrimary }]}>
-            Portion for {selected.food.name}
-          </Text>
-          <Text allowFontScaling style={[typography.caption, { color: colors.textSecondary }]}>
-            {sourceNames[selected.ref.sourceId]}
-          </Text>
-          {selected.portions.filter((portion) => (portion.gramWeight ?? 0) > 0).slice(0, 5).map((portion) => (
-            <ActionButton
-              key={portion.id}
-              label={`Use ${portionLabel(portion)}`}
-              tone="secondary"
-              disabled={busyAction !== null}
-              onPress={() => {
-                setSelectedServingId(portion.id as FoodServingId);
-                setGrams(String(portion.gramWeight));
-              }}
-            />
-          ))}
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
-            <TextInput
-              accessibilityLabel="Portion in grams"
-              value={grams}
-              onChangeText={setGrams}
-              keyboardType="decimal-pad"
-              style={[inputStyle, { flex: 1 }]}
-            />
-            <Text allowFontScaling style={[typography.body, { color: colors.textSecondary }]}>g</Text>
-          </View>
-          <ActionButton label="Add to event" disabled={busyAction !== null} onPress={() => void addSelected()} />
-          <ActionButton
-            label={favoriteIds.has(selected.food.id) ? 'Remove favorite' : 'Favorite'}
-            tone="secondary"
-            disabled={busyAction !== null}
-            onPress={() => void toggleFavorite(selected)}
-          />
-        </Surface>
       ) : null}
 
       <Surface>
@@ -1213,6 +1294,23 @@ export function MealComposerScreen() {
         onPress={() => void confirm()}
       />
       <ActionButton label="Cancel" tone="secondary" disabled={busyAction !== null} onPress={() => void cancel()} />
-    </ScrollView>
+      </ScrollView>
+
+      <FoodDetailSheet
+        candidate={selected}
+        sourceLabel={selected ? sourceNames[selected.ref.sourceId] : ''}
+        favorite={selected ? favoriteIds.has(selected.food.id) : false}
+        standings={dayStandings}
+        pendingCount={session.draft.items.length}
+        busy={busyAction !== null}
+        onClose={() => setSelected(null)}
+        onToggleFavorite={(candidate) => void toggleFavorite(candidate)}
+        onAdd={(candidate, portion) => void addFromSheet(candidate, portion)}
+        onLogAll={() => {
+          setSelected(null);
+          void confirm();
+        }}
+      />
+    </KeyboardAvoidingView>
   );
 }
