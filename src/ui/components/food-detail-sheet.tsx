@@ -1,11 +1,13 @@
 import { useState } from 'react';
 import { Modal, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 
-import type { FoodCandidate } from '@/domain';
+import type { FoodCandidate, MassUnitPreference } from '@/domain';
+import { isVolumeUnit } from '@/domain';
 import type { FoodServingId } from '@/domain/shared/ids';
 import { ActionButton } from '@/ui/components/action-button';
 import { GoalImpactRow } from '@/ui/components/goal-impact-row';
 import {
+  defaultAmountForChoice,
   defaultPortionChoice,
   goalImpactsForDetail,
   gramsForChoice,
@@ -14,6 +16,7 @@ import {
   parseQuantity,
   portionChoicesFor,
   portionSummary,
+  servingIdForChoice,
   type DayStanding,
 } from '@/ui/food-detail-model';
 import { minimumTouchTarget, radii, spacing, typography } from '@/ui/theme/tokens';
@@ -41,6 +44,8 @@ export interface FoodDetailSheetProps {
   readonly standings: readonly DayStanding[];
   /** How many foods are waiting in the draft, for the secondary action. */
   readonly pendingCount: number;
+  /** The unit typed amounts start in, from Settings. */
+  readonly preferredMassUnit?: MassUnitPreference;
   readonly busy: boolean;
   readonly onClose: () => void;
   readonly onToggleFavorite: (candidate: FoodCandidate) => void;
@@ -64,6 +69,7 @@ function FoodDetailSheetBody({
   favorite,
   standings,
   pendingCount,
+  preferredMassUnit = 'g',
   busy,
   onClose,
   onToggleFavorite,
@@ -71,13 +77,14 @@ function FoodDetailSheetBody({
   onLogAll,
 }: FoodDetailSheetProps & { readonly candidate: FoodCandidate }) {
   const colors = useThemeColors();
-  const [quantityText, setQuantityText] = useState('1');
+  const opening = defaultPortionChoice(candidate, preferredMassUnit);
+  const [quantityText, setQuantityText] = useState(() => String(defaultAmountForChoice(opening)));
   // `null` means "the food's own preference", which is not the same as the
   // weight option's absent serving id.
   const [choiceKey, setChoiceKey] = useState<string | null>(null);
 
-  const choices = portionChoicesFor(candidate);
-  const choice = choices.find((entry) => entry.key === choiceKey) ?? defaultPortionChoice(candidate);
+  const choices = portionChoicesFor(candidate, preferredMassUnit);
+  const choice = choices.find((entry) => entry.key === choiceKey) ?? opening;
 
   const quantity = parseQuantity(quantityText);
   const gramWeight = quantity === null ? null : gramsForChoice(choice, quantity);
@@ -245,7 +252,7 @@ function FoodDetailSheetBody({
             </Text>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
               <TextInput
-                accessibilityLabel="How many servings"
+                accessibilityLabel="Amount"
                 keyboardType="decimal-pad"
                 value={quantityText}
                 onChangeText={setQuantityText}
@@ -265,7 +272,7 @@ function FoodDetailSheetBody({
                 ]}
               />
               <Text allowFontScaling style={[typography.body, { color: colors.textSecondary, flex: 1 }]}>
-                × {choice.label}
+                {choice.kind === 'serving' ? `× ${choice.label}` : choice.label}
               </Text>
             </View>
             {quantity === null ? (
@@ -274,10 +281,15 @@ function FoodDetailSheetBody({
                 allowFontScaling
                 style={[typography.caption, { color: colors.destructive }]}
               >
-                Enter how many you had, as a number greater than zero.
+                Enter an amount greater than zero.
               </Text>
             ) : null}
 
+            <Text allowFontScaling style={[typography.caption, { color: colors.textSecondary }]}>
+              {choices.some((entry) => entry.kind === 'unit' && isVolumeUnit(entry.unit))
+                ? 'Measure in a serving, a weight, or a volume.'
+                : 'Measure in a serving or a weight.'}
+            </Text>
             <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.xs }}>
               {choices.map((entry) => {
                 const active = entry.key === choice.key;
@@ -288,7 +300,12 @@ function FoodDetailSheetBody({
                     accessibilityState={{ selected: active }}
                     accessibilityLabel={`Measure in ${entry.label}`}
                     disabled={busy}
-                    onPress={() => setChoiceKey(entry.key)}
+                    onPress={() => {
+                      setChoiceKey(entry.key);
+                      // 2 breasts is not 2 ounces. Re-anchor rather than carry
+                      // a number that meant something else.
+                      setQuantityText(String(defaultAmountForChoice(entry)));
+                    }}
                     style={{
                       borderWidth: 1,
                       borderColor: active ? colors.brand : colors.border,
@@ -335,7 +352,7 @@ function FoodDetailSheetBody({
               disabled={!canAdd}
               onPress={() => {
                 if (!canAdd || gramWeight === null || quantity === null) return;
-                onAdd(candidate, { gramWeight, servingId: choice.servingId, quantity });
+                onAdd(candidate, { gramWeight, servingId: servingIdForChoice(choice), quantity });
               }}
             />
           </View>

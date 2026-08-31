@@ -164,6 +164,21 @@ export function defaultPortionChoice(
   );
 }
 
+/**
+ * What the amount field starts at for a given choice.
+ *
+ * One of a named serving, because that is what "a serving" means. For a bare
+ * unit the answer is not 1 — one gram is not a portion of anything — so it is
+ * the amount of that unit closest to 100 g, which is the basis the nutrition is
+ * stated against: 100 for grams, 3.5 for ounces, roughly a cup for a liquid.
+ */
+export function defaultAmountForChoice(choice: PortionChoice): number {
+  if (choice.kind === 'serving') return 1;
+  const amount = 100 / choice.gramWeight;
+  if (!Number.isFinite(amount) || amount <= 0) return 1;
+  return amount >= 10 ? Math.round(amount) : Math.round(amount * 10) / 10;
+}
+
 /** Total weight for an amount of a chosen portion. */
 export function gramsForChoice(choice: PortionChoice, amount: number): number {
   return choice.gramWeight * amount;
