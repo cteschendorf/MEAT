@@ -41,4 +41,4 @@ The current local candidate includes production T-bone branding, a protein-first
 
 Source-aware food discovery, barcode lookup, the pinned offline USDA core, independent provider caches, onboarding, favorites/recents, and saved meals/recipes remain intact. Food quantities may be entered as a named serving with a quantity ("2 x 1 medium breast") or as an explicit gram weight; the serving is retained so history shows the household measure rather than a flattened figure. Ounce-aware entry is still deferred until it can be supported end to end.
 
-Version remains `0.1.0`. Build number `2` shipped the branded timeline release. Build number `3` is the input-revamp TestFlight candidate; each subsequent build number requires its own approval.
+Version remains `0.1.0`. Build number `2` shipped the branded timeline release. Build number `3` was the first input-revamp TestFlight candidate. Build number `4` adds the food detail sheet, goal-mode-aware targets, the iOS barcode fix, and keyboard handling; each subsequent build number requires its own approval.
