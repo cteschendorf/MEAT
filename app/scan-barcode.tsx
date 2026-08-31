@@ -10,7 +10,7 @@ import { ExclusiveActionGate } from '@/services/actions/exclusive-action';
 import {
   BarcodeScanDeduplicator,
   cameraPermissionPlan,
-  scannerBarcodeFormat,
+  interpretScannedBarcode,
   SourceAwareBarcodeService,
   supportedScannerBarcodeFormats,
   type BarcodeSourceOutcome,
@@ -27,6 +27,12 @@ const sourceNames: Readonly<Record<FoodSourceId, string>> = {
   'usda-fdc': 'USDA — online',
   'open-food-facts': 'Open Food Facts',
 };
+
+/** Roughly a second of unusable frames before offering the keyboard instead. */
+const UNREADABLE_FRAME_HINT = 15;
+
+/** EAN-8 or UPC-E, UPC-A, EAN-13. */
+const retailBarcodeLengths: readonly number[] = [8, 12, 13];
 
 function candidateKey(candidate: FoodCandidate): string {
   return `${candidate.ref.sourceId}:${candidate.ref.recordId}`;
@@ -62,6 +68,9 @@ export default function ScanBarcodeScreen() {
   const [resolving, setResolving] = useState(false);
   const [adding, setAdding] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  // Frames the camera saw but could not use. Not an error — just the cue for
+  // offering the keyboard once it is clear the label is not going to read.
+  const [unreadableFrames, setUnreadableFrames] = useState(0);
   const inFlight = useRef(false);
   const abortController = useRef<AbortController | null>(null);
   const deduplicator = useRef(new BarcodeScanDeduplicator());
@@ -101,6 +110,7 @@ export default function ScanBarcodeScreen() {
     const plan = cameraPermissionPlan(permission);
     if (plan === 'ready') {
       deduplicator.current.reset();
+      setUnreadableFrames(0);
       setResolution(null);
       setSelected(null);
       setCameraActive(true);
@@ -118,6 +128,7 @@ export default function ScanBarcodeScreen() {
     const next = await requestPermission();
     if (next.granted) {
       deduplicator.current.reset();
+      setUnreadableFrames(0);
       setCameraActive(true);
     } else {
       setMessage('Camera access was not granted. You can still enter the barcode below.');
@@ -166,14 +177,19 @@ export default function ScanBarcodeScreen() {
   }
 
   function handleCameraBarcode(data: string, rawType: string) {
-    const format = scannerBarcodeFormat(rawType);
-    if (!format) return;
-    try {
-      if (!deduplicator.current.accept(data, format)) return;
-      void resolveBarcode(data, format);
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : 'Unable to read that barcode.');
+    const scan = interpretScannedBarcode(data, rawType);
+    if (!scan.ok) {
+      // A frame that does not resolve is normal while aiming, so it never
+      // becomes a message. Only a run of them earns the fallback hint, and a
+      // symbology we never asked for is not evidence of a struggling scan.
+      if (scan.reason !== 'unsupported-symbology') {
+        setUnreadableFrames((count) => count + 1);
+      }
+      return;
     }
+    if (!deduplicator.current.accept(scan.digits, scan.format)) return;
+    setUnreadableFrames(0);
+    void resolveBarcode(scan.digits, scan.format);
   }
 
   async function addToEvent() {
@@ -208,12 +224,14 @@ export default function ScanBarcodeScreen() {
 
   function scanAnother() {
     deduplicator.current.reset();
+    setUnreadableFrames(0);
     setResolution(null);
     setSelected(null);
     setMessage(null);
     setCameraActive(permission?.granted ?? false);
   }
 
+  const manualBarcodeReady = retailBarcodeLengths.includes(manualBarcode.length);
   const permissionPlan = cameraPermissionPlan(permission);
   const cameraButtonLabel = permissionPlan === 'ready'
     ? 'Scan barcode'
@@ -249,6 +267,15 @@ export default function ScanBarcodeScreen() {
               }
             />
           </View>
+          <Text
+            accessibilityLiveRegion="polite"
+            allowFontScaling
+            style={[typography.caption, { color: colors.textSecondary }]}
+          >
+            {unreadableFrames >= UNREADABLE_FRAME_HINT
+              ? 'Still not reading that label. Try more light or a flatter angle, or type the number below.'
+              : 'Hold the barcode inside the frame.'}
+          </Text>
           <ActionButton label="Stop camera" tone="secondary" onPress={() => setCameraActive(false)} />
         </Surface>
       ) : (
@@ -271,14 +298,22 @@ export default function ScanBarcodeScreen() {
           placeholder="EAN or UPC"
           placeholderTextColor={colors.textSecondary}
           value={manualBarcode}
-          onChangeText={setManualBarcode}
-          onSubmitEditing={() => void resolveBarcode(manualBarcode)}
+          // Separators are printed on packages but never part of the number, so
+          // they are dropped as they are typed rather than rejected afterwards.
+          onChangeText={(text) => setManualBarcode(text.replace(/\D/g, ''))}
+          onSubmitEditing={() => { if (manualBarcodeReady) void resolveBarcode(manualBarcode); }}
+          maxLength={13}
           style={[typography.body, { color: colors.textPrimary, borderColor: colors.border, borderWidth: 1, borderRadius: 12, padding: 12 }]}
         />
+        {manualBarcode.length > 0 && !manualBarcodeReady ? (
+          <Text accessibilityLiveRegion="polite" allowFontScaling style={[typography.caption, { color: colors.textSecondary }]}>
+            {manualBarcode.length} of 8, 12, or 13 digits.
+          </Text>
+        ) : null}
         <ActionButton
           label={resolving ? 'Checking sources…' : 'Look up barcode'}
           onPress={() => void resolveBarcode(manualBarcode)}
-          disabled={!service || resolving || !manualBarcode.trim()}
+          disabled={!service || resolving || !manualBarcodeReady}
         />
       </Surface>
 
