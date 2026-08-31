@@ -58,6 +58,16 @@ export interface SourceAwareBarcodeResolution {
   readonly sources: readonly BarcodeSourceOutcome[];
 }
 
+/** Lengths a real retail barcode can have: EAN-8/UPC-E, UPC-A, EAN-13. */
+const retailBarcodeLengths: readonly number[] = [8, 12, 13];
+
+const formatNames: Readonly<Record<ScannerBarcodeFormat, string>> = {
+  ean8: 'EAN-8',
+  ean13: 'EAN-13',
+  upc_a: 'UPC-A',
+  upc_e: 'UPC-E',
+};
+
 function normalizedDigits(raw: string): string {
   const normalized = raw.trim().replace(/[\s-]/g, '');
   if (!/^\d+$/.test(normalized)) {
@@ -66,23 +76,54 @@ function normalizedDigits(raw: string): string {
   return normalized;
 }
 
+/**
+ * Validates the trailing GS1 mod-10 check digit.
+ *
+ * This gates *camera* scans only. A misread frame still looks like digits, so
+ * the check digit is the one cheap signal that separates a real product from a
+ * bad read, and firing four provider lookups at a misread is worse than waiting
+ * one more frame. Hand-typed barcodes are never gated on it: store-internal and
+ * some legitimately mislabelled products carry check digits that do not
+ * validate, and a person reading a number off a package is trusted.
+ */
+export function gs1CheckDigitValid(digits: string): boolean {
+  if (!/^\d+$/.test(digits) || digits.length < 8) return false;
+  const expected = Number(digits[digits.length - 1]);
+  let sum = 0;
+  let weight = 3;
+  for (let index = digits.length - 2; index >= 0; index -= 1) {
+    sum += Number(digits[index]) * weight;
+    weight = weight === 3 ? 1 : 3;
+  }
+  return (10 - (sum % 10)) % 10 === expected;
+}
+
+/**
+ * Normalizes a barcode to bare digits.
+ *
+ * `format` is the symbology a scanner *reported*, and it is advisory only —
+ * never a length contract. iOS has no UPC-A metadata type at all: expo-camera
+ * maps `upc_a` onto `AVMetadataObject.ObjectType.ean13`, and then strips a
+ * leading zero from the payload. Every US grocery item therefore arrives as
+ * `{ type: 'ean13', data: <12 digits> }`, and so does any EAN-13 that begins
+ * with a zero. Treating the reported format as authoritative rejected both.
+ */
 export function normalizeRetailBarcode(raw: string, format?: ScannerBarcodeFormat): string {
   const normalized = normalizedDigits(raw);
-  const expectedLength = format === 'ean13' ? 13 : format === 'upc_a' ? 12 : 8;
-  if (format && normalized.length !== expectedLength) {
-    throw new Error(
-      `${format === 'ean13' ? 'EAN-13' : format === 'upc_a' ? 'UPC-A' : format === 'upc_e' ? 'UPC-E' : 'EAN-8'} barcodes must contain ${expectedLength} digits.`,
-    );
-  }
-  if (!format && ![8, 12, 13].includes(normalized.length)) {
-    throw new Error('Barcode must be an EAN-8, EAN-13, UPC-A, or UPC-E value.');
-  }
-  return normalized;
+  if (retailBarcodeLengths.includes(normalized.length)) return normalized;
+  throw new Error(
+    format
+      ? `A ${formatNames[format]} scan produced ${normalized.length} digits, which is not a retail barcode length.`
+      : 'Barcode must be an EAN-8, EAN-13, UPC-A, or UPC-E value.',
+  );
 }
 
 /** Expand an eight-digit UPC-E (number system + six digits + check digit) to UPC-A. */
 export function expandUpcE(raw: string): string {
-  const barcode = normalizeRetailBarcode(raw, 'upc_e');
+  const barcode = normalizedDigits(raw);
+  if (barcode.length !== 8) {
+    throw new Error('UPC-E barcodes must contain 8 digits.');
+  }
   const [numberSystem, d1, d2, d3, d4, d5, d6, checkDigit] = barcode;
   if (
     numberSystem === undefined ||
@@ -104,21 +145,67 @@ export function expandUpcE(raw: string): string {
   return `${numberSystem}${d1}${d2}${d3}${d4}${d5}0000${d6}${checkDigit}`;
 }
 
+/**
+ * Every identifier this barcode could be filed under, in preference order.
+ *
+ * Derived from the digits rather than the reported symbology, because the
+ * symbology is unreliable (see `normalizeRetailBarcode`). The same physical
+ * product is UPC-A in one database and zero-padded EAN-13 in another, so both
+ * are always tried; the scanned digits stay first so the resolution reports
+ * back what the user actually scanned.
+ */
 export function retailBarcodeVariants(
   raw: string,
   format?: ScannerBarcodeFormat,
 ): readonly string[] {
   const normalized = normalizeRetailBarcode(raw, format);
   const variants = [normalized];
-  if (format === 'upc_e') {
-    const expanded = expandUpcE(normalized);
-    variants.push(expanded, `0${expanded}`);
-  } else if (format === 'upc_a' || (!format && normalized.length === 12)) {
+
+  if (normalized.length === 12) {
     variants.push(`0${normalized}`);
-  } else if ((format === 'ean13' || !format) && normalized.length === 13 && normalized.startsWith('0')) {
+  } else if (normalized.length === 13 && normalized.startsWith('0')) {
     variants.push(normalized.slice(1));
+  } else if (normalized.length === 8 && format !== 'ean8') {
+    // Eight digits is genuinely ambiguous: EAN-8 stands alone, UPC-E expands.
+    // Unless the scanner positively said EAN-8, try the expansion too rather
+    // than guess — three cheap parallel lookups beat one confident miss.
+    try {
+      const expanded = expandUpcE(normalized);
+      variants.push(expanded, `0${expanded}`);
+    } catch {
+      // Not a UPC-E shape, so EAN-8 on its own is the whole answer.
+    }
   }
+
   return [...new Set(variants)];
+}
+
+export type ScanRejection = 'unsupported-symbology' | 'not-a-retail-barcode' | 'check-digit';
+
+export type ScannedBarcode =
+  | { readonly ok: true; readonly digits: string; readonly format: ScannerBarcodeFormat }
+  | { readonly ok: false; readonly reason: ScanRejection };
+
+/**
+ * Turns one raw camera event into something safe to look up.
+ *
+ * Total: a frame the camera cannot make sense of is an ordinary occurrence
+ * during scanning, not an error the user caused, so this never throws and the
+ * caller never has to guard it.
+ */
+export function interpretScannedBarcode(data: string, rawType: string): ScannedBarcode {
+  const format = scannerBarcodeFormat(rawType);
+  if (!format) return { ok: false, reason: 'unsupported-symbology' };
+
+  let digits: string;
+  try {
+    digits = normalizeRetailBarcode(data, format);
+  } catch {
+    return { ok: false, reason: 'not-a-retail-barcode' };
+  }
+
+  if (!gs1CheckDigitValid(digits)) return { ok: false, reason: 'check-digit' };
+  return { ok: true, digits, format };
 }
 
 export function scannerBarcodeFormat(value: string): ScannerBarcodeFormat | undefined {
@@ -228,8 +315,21 @@ export class BarcodeScanDeduplicator {
     }
   }
 
+  /**
+   * Keyed on the digits alone, and never throws.
+   *
+   * The format is deliberately not part of the key: iOS reports the same
+   * physical barcode under different symbologies from one frame to the next, so
+   * including it would let one product through several times. An unusable value
+   * is simply not accepted — a camera frame is not a place to raise an error.
+   */
   accept(raw: string, format?: ScannerBarcodeFormat): boolean {
-    const key = `${format ?? 'unknown'}:${normalizeRetailBarcode(raw, format)}`;
+    let key: string;
+    try {
+      key = normalizeRetailBarcode(raw, format);
+    } catch {
+      return false;
+    }
     const now = this.clock();
     if (key === this.lastKey && now - this.lastAcceptedAt < this.windowMs) return false;
     this.lastKey = key;
