@@ -36,13 +36,20 @@ export function contextFromRawMealValues(
 /**
  * An add may await provider persistence while another draft edit completes.
  * Keep the latest context/items and append only the newly created item IDs.
+ *
+ * This deliberately does not short-circuit on `latest === base`. Drafts are now
+ * persisted and rehydrated (THI-305), so reference identity is not a reliable
+ * proxy for "unchanged". The merge path is equivalent when nothing changed —
+ * the caller's addition only appends items, so re-deriving from `latest`
+ * reproduces `added` exactly — and it stays correct once identity no longer
+ * survives a round trip.
  */
 export function rebaseComposerAddition(
   base: MealDraft,
   added: MealDraft,
   latest: MealDraft | null,
 ): MealDraft {
-  if (!latest || latest === base) return added;
+  if (!latest) return added;
   const baseIds = new Set(base.items.map((item) => item.id));
   const latestIds = new Set(latest.items.map((item) => item.id));
   const newItems = added.items.filter((item) => !baseIds.has(item.id) && !latestIds.has(item.id));
