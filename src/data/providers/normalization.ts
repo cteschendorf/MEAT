@@ -2,6 +2,7 @@ import type { Food, FoodServing, NutrientValue, NutritionSource } from '@/domain
 import type { FoodCandidate, FoodPortion, FoodSourceId } from '@/domain/food/source';
 import { foodIdForRef } from '@/domain/food/source';
 import type { FoodServingId, ISODateTime, SourceRecordId } from '@/domain/shared/ids';
+import { gramsForAmount, type MassUnit } from '@/domain/nutrition/measurement';
 import { ApiError } from '@/data/providers/api-error';
 
 type JsonObject = Readonly<Record<string, unknown>>;
@@ -27,6 +28,43 @@ function nonnegativeNumeric(value: unknown): number | undefined {
 function asRecordId(value: unknown): SourceRecordId | undefined {
   if (typeof value === 'number' && Number.isFinite(value)) return String(value) as SourceRecordId;
   return nonEmptyString(value) as SourceRecordId | undefined;
+}
+
+/**
+ * Provider spellings for the mass units a serving can be stated in.
+ *
+ * A package's own serving size is the portion people actually eat, so losing it
+ * sends them to a synthesized "100 g" that nobody weighs out. Only a literal
+ * "g" used to be recognised, which quietly discarded every serving expressed in
+ * ounces or kilograms. Volume spellings are deliberately absent: converting
+ * those needs the food's density, and inventing one is not on offer (THI-317).
+ */
+const massUnitSpellings: Readonly<Record<string, MassUnit>> = {
+  g: 'g',
+  gr: 'g',
+  gram: 'g',
+  grams: 'g',
+  gramme: 'g',
+  grammes: 'g',
+  grm: 'g',
+  kg: 'kg',
+  kilogram: 'kg',
+  kilograms: 'kg',
+  oz: 'oz',
+  ounce: 'oz',
+  ounces: 'oz',
+  lb: 'lb',
+  lbs: 'lb',
+  pound: 'lb',
+  pounds: 'lb',
+};
+
+/** Grams for a serving stated in a mass unit, or undefined when it is not one. */
+function servingGramWeight(amount: number | undefined, unit: string | undefined): number | undefined {
+  if (amount === undefined || !unit) return undefined;
+  const massUnit = massUnitSpellings[unit.trim().toLowerCase()];
+  if (!massUnit) return undefined;
+  return gramsForAmount(amount, massUnit) ?? undefined;
 }
 
 function portionFromServing(serving: FoodServing): FoodPortion {
@@ -196,7 +234,7 @@ function usdaRecord(value: unknown, now: ISODateTime): FoodCandidate | null {
   const servingUnit = nonEmptyString(value.servingSizeUnit);
   const brand = nonEmptyString(value.brandName ?? value.brandOwner);
   const barcode = nonEmptyString(value.gtinUpc ?? value.barcode);
-  const servingGrams = servingUnit?.toLowerCase() === 'g' ? servingSize : undefined;
+  const servingGrams = servingGramWeight(servingSize, servingUnit);
   const servings: FoodServing[] = servingGrams === undefined
     ? []
     : [{
@@ -264,7 +302,7 @@ function offServing(value: JsonObject, sourceId: FoodSourceId, recordId: SourceR
   if (servingQuantity === undefined || servingQuantity <= 0 || !servingUnit) return [];
   const ref = { sourceId, recordId };
   const foodId = foodIdForRef(ref);
-  const grams = ['g', 'gram', 'grams'].includes(servingUnit.toLowerCase()) ? servingQuantity : undefined;
+  const grams = servingGramWeight(servingQuantity, servingUnit);
   return [{
     id: `${foodId}:serving` as FoodServingId,
     foodId,
