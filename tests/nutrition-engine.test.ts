@@ -3,6 +3,8 @@ import test from 'node:test';
 
 import type { Food, Meal, NutrientDefinition, NutritionFacts, Recipe } from '../src/domain/index';
 import type { FoodId, FoodServingId, ISODateTime, MealId, MealItemId, RecipeId } from '../src/domain/shared/ids';
+import { coreNutrientDisplayOrder } from '../src/domain/nutrition/nutrients';
+import { todayMetricCodes } from '../src/services/today/snapshot';
 import {
   aggregateNutritionFacts,
   gramsForFoodPortion,
@@ -163,4 +165,16 @@ test('calculation rejects corrupt negative and non-finite nutrition data', () =>
     }]),
     /finite nonnegative nutrition value/,
   );
+});
+
+test('core metrics are ordered protein first, everywhere', () => {
+  // The product is protein-first; this order is the contract every surface
+  // renders by (THI-323). Reordering here reorders search rows, item rows,
+  // meal detail and the dashboard together.
+  assert.deepEqual(
+    [...coreNutrientDisplayOrder],
+    ['protein-g', 'energy-kcal', 'carbohydrate-g', 'fat-g', 'fiber-g'],
+  );
+  // Today's snapshot must not carry a second, drifting copy of the order.
+  assert.deepEqual([...todayMetricCodes], [...coreNutrientDisplayOrder]);
 });
