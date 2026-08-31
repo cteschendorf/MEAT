@@ -3,6 +3,8 @@ import type { SQLiteDatabase } from 'expo-sqlite';
 import type { Food, Meal, MediaAsset, NutritionGoal, Recipe, SavedMeal, UserPreferences } from '@/domain';
 import type { FoodId, ISODateTime, MealId, MediaId, RecipeId, SavedMealId } from '@/domain/shared/ids';
 import type {
+  ComposerDraftRecord,
+  ComposerDraftRepository,
   FavoriteFoodRepository,
   FoodReferenceRepository,
   FoodRepository,
@@ -472,8 +474,39 @@ export class SqlitePrivateDataRepository implements PrivateDataRepository {
   async deleteAllPrivateData(): Promise<void> {
     await this.db.withTransactionAsync(async () => {
       await this.db.execAsync(
-        'DELETE FROM favorite_food_refs; DELETE FROM known_food_refs; DELETE FROM media_assets; DELETE FROM meals; DELETE FROM saved_meals; DELETE FROM recipes; DELETE FROM goals; DELETE FROM foods; DELETE FROM user_preferences;',
+        'DELETE FROM composer_drafts; DELETE FROM favorite_food_refs; DELETE FROM known_food_refs; DELETE FROM media_assets; DELETE FROM meals; DELETE FROM saved_meals; DELETE FROM recipes; DELETE FROM goals; DELETE FROM foods; DELETE FROM user_preferences;',
       );
     });
+  }
+}
+
+type ComposerDraftRow = { id: string; payload: string; updated_at: string };
+
+export class SqliteComposerDraftRepository implements ComposerDraftRepository {
+  constructor(private readonly db: SQLiteDatabase) {}
+
+  async list(): Promise<readonly ComposerDraftRecord[]> {
+    const rows = await this.db.getAllAsync<ComposerDraftRow>(
+      'SELECT id, payload, updated_at FROM composer_drafts ORDER BY updated_at DESC',
+    );
+    return rows.map((row) => ({ id: row.id, payload: row.payload, updatedAt: row.updated_at }));
+  }
+
+  async save(record: ComposerDraftRecord): Promise<void> {
+    await this.db.runAsync(
+      `INSERT INTO composer_drafts (id, payload, updated_at) VALUES (?, ?, ?)
+       ON CONFLICT(id) DO UPDATE SET payload = excluded.payload, updated_at = excluded.updated_at`,
+      record.id,
+      record.payload,
+      record.updatedAt,
+    );
+  }
+
+  async delete(id: string): Promise<void> {
+    await this.db.runAsync('DELETE FROM composer_drafts WHERE id = ?', id);
+  }
+
+  async deleteAll(): Promise<void> {
+    await this.db.execAsync('DELETE FROM composer_drafts;');
   }
 }
