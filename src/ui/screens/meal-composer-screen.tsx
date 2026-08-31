@@ -20,7 +20,7 @@ import type {
   FoodSearchGroup,
   FoodSourceId,
 } from '@/domain/food/source';
-import { sourceIdFromFoodId } from '@/domain/food/source';
+import { foodSourceIds, sourceIdFromFoodId } from '@/domain/food/source';
 import type {
   FoodId,
   FoodServingId,
@@ -45,6 +45,10 @@ import {
 } from '@/services/media/meal-photo-workflow';
 import type { MealDraft } from '@/services/meals/meal-composer';
 import {
+  portionForSelection,
+  portionWithGramWeight,
+} from '@/services/meals/portion-selection';
+import {
   ActionButton,
   ScreenState,
   Surface,
@@ -54,6 +58,10 @@ import {
   typography,
   useThemeColors,
 } from '@/ui';
+import { FoodResultRowItem } from '@/ui/components/food-result-row';
+import { coreMetricLine } from '@/ui/core-metrics';
+import { buildFoodResultTiers } from '@/ui/food-search-results';
+import { summarizeDraft } from '@/ui/meal-draft-summary';
 import {
   mealComposerSessions,
   type MealComposerSession,
@@ -517,7 +525,12 @@ export function MealComposerScreen() {
     }
   }
 
-  async function addCandidate(candidate: FoodCandidate, gramWeight: number, servingId?: FoodServingId): Promise<void> {
+  async function addCandidate(
+    candidate: FoodCandidate,
+    gramWeight: number,
+    servingId?: FoodServingId,
+    quantity = 1,
+  ): Promise<void> {
     if (!services || !session) return;
     if (!Number.isFinite(gramWeight) || gramWeight <= 0) {
       setMessage('Enter a portion greater than zero grams.');
@@ -525,7 +538,7 @@ export function MealComposerScreen() {
     }
     const base = session.draft;
     const added = await services.mealComposer.addCandidate(base, candidate, {
-      portion: { quantity: 1, gramWeight, ...(servingId ? { servingId } : {}) },
+      portion: portionForSelection(candidate.food, servingId, quantity, gramWeight),
     });
     publishDraft(rebaseAddedItems(base, added));
     setSelected(null);
@@ -578,10 +591,13 @@ export function MealComposerScreen() {
     try {
       const item = session.draft.items.find((candidate) => candidate.id === itemId);
       if (!item) return;
-      publishDraft(services.mealComposer.updateItemPortion(session.draft, itemId, {
-        ...item.portion,
-        gramWeight,
-      }));
+      publishDraft(
+        services.mealComposer.updateItemPortion(
+          session.draft,
+          itemId,
+          portionWithGramWeight(item.portion, gramWeight),
+        ),
+      );
       setMessage(null);
     } catch (error) {
       setMessage(messageFor(error, 'Unable to change this portion.'));
@@ -793,6 +809,26 @@ export function MealComposerScreen() {
   const occurredAt = session ? new Date(session.draft.context.occurredAt) : new Date();
   const currentTitle = titleText;
   const totalPhotos = (session?.existingMedia.length ?? 0) + (session?.stagedPhotos.length ?? 0);
+  // What the event adds up to as it is built, so the number the app exists to
+  // produce is visible while the user works (THI-307).
+  const draftSummary = useMemo(
+    () => (session ? summarizeDraft(session.draft, foodById) : null),
+    [session, foodById],
+  );
+
+  // One ranked list rather than four provider boxes; provenance rides on each
+  // row so nothing is merged (THI-313).
+  const resultTiers = useMemo(
+    () =>
+      buildFoodResultTiers({
+        groups: Object.values(groups).filter((group): group is FoodSearchGroup => Boolean(group)),
+        query: submittedQuery,
+        favoriteIds: [...favoriteIds],
+        disabledSources: foodSourceIds.filter((id) => !enabledSources.has(id)),
+      }),
+    [groups, submittedQuery, favoriteIds, enabledSources],
+  );
+
   const inputStyle = useMemo(
     () => [
       typography.body,
@@ -833,75 +869,7 @@ export function MealComposerScreen() {
     );
   }
 
-  function renderCandidate(candidate: FoodCandidate) {
-    const selectedHere = selected?.food.id === candidate.food.id;
-    const favorite = favoriteIds.has(candidate.food.id);
-    return (
-      <Surface key={`${candidate.ref.sourceId}:${candidate.ref.recordId}`} tone={selectedHere ? 'muted' : 'default'}>
-        <Text allowFontScaling selectable style={[typography.bodyStrong, { color: colors.textPrimary }]}>
-          {candidate.food.name}
-        </Text>
-        <Text allowFontScaling selectable style={[typography.caption, { color: colors.textSecondary }]}>
-          {candidate.food.brand ? `${candidate.food.brand} · ` : ''}
-          {candidate.portions.length
-            ? candidate.portions.slice(0, 3).map(portionLabel).join(', ')
-            : '100 g portion'}
-        </Text>
-        <Text allowFontScaling selectable style={[typography.caption, { color: colors.textSecondary }]}>
-          {sourceNames[candidate.ref.sourceId]} · Record {candidate.provenance.recordId}
-        </Text>
-        <ActionButton
-          label={selectedHere ? 'Selected' : 'Choose portion'}
-          tone="secondary"
-          disabled={busyAction !== null}
-          onPress={() => selectCandidate(candidate)}
-        />
-        <ActionButton
-          label={favorite ? 'Remove favorite' : 'Favorite'}
-          tone="secondary"
-          disabled={busyAction !== null}
-          onPress={() => void toggleFavorite(candidate)}
-        />
-      </Surface>
-    );
-  }
 
-  function renderProvider(source: (typeof sourceDefinitions)[number]) {
-    const enabled = enabledSources.has(source.id);
-    const group = groups[source.id];
-    let content;
-    if (!enabled) {
-      content = <ScreenState title="Disabled" message="Enable this source under Me → Food data sources." />;
-    } else if (!group || group.state === 'loading') {
-      content = <ScreenState title="Searching…" message={`Checking ${source.name}.`} />;
-    } else if (group.state === 'empty') {
-      content = <ScreenState title="No matches" message={`${source.name} found no matches.`} />;
-    } else if (group.state === 'ready') {
-      content = <View style={{ gap: spacing.sm }}>{group.candidates.map(renderCandidate)}</View>;
-    } else {
-      content = (
-        <View style={{ gap: spacing.sm }}>
-          <ScreenState
-            title={group.state === 'offline' ? 'Offline' : group.state === 'throttled' ? 'Temporarily limited' : 'Source unavailable'}
-            message={`${group.issue.message}${group.candidates.length ? ' Showing saved results.' : ''}`}
-            role={group.state === 'error' ? 'alert' : 'status'}
-          />
-          {group.candidates.map(renderCandidate)}
-        </View>
-      );
-    }
-    return (
-      <Surface key={source.id}>
-        <Text accessibilityRole="header" allowFontScaling style={[typography.title3, { color: colors.brand }]}>
-          {source.name}
-        </Text>
-        <Text allowFontScaling style={[typography.caption, { color: colors.textSecondary }]}>
-          {source.detail}
-        </Text>
-        {content}
-      </Surface>
-    );
-  }
 
   if (!services || !session) {
     return (
@@ -930,11 +898,41 @@ export function MealComposerScreen() {
         <Text accessibilityRole="header" allowFontScaling style={[typography.title3, { color: colors.textPrimary }]}>
           Event foods · {session.draft.items.length}
         </Text>
+        {draftSummary && session.draft.items.length ? (
+          <View style={{ gap: spacing.xs }}>
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: spacing.xs }}>
+              {draftSummary.totals.map((metric) => (
+                <Text
+                  key={metric.code}
+                  allowFontScaling
+                  style={[
+                    metric.code === 'protein-g' ? typography.bodyStrong : typography.caption,
+                    {
+                      color:
+                        metric.code === 'protein-g' && metric.known
+                          ? colors.brand
+                          : colors.textSecondary,
+                    },
+                  ]}
+                >
+                  {metric.text} {metric.label}
+                </Text>
+              ))}
+            </View>
+            {draftSummary.unavailableCount ? (
+              <Text allowFontScaling style={[typography.caption, { color: colors.textSecondary }]}>
+                {draftSummary.unavailableCount} item
+                {draftSummary.unavailableCount === 1 ? '' : 's'} could not be counted.
+              </Text>
+            ) : null}
+          </View>
+        ) : null}
         {session.draft.items.length === 0 ? (
           <ScreenState title="No foods yet" message="Search, scan, create, or choose a saved meal below." />
         ) : (
           session.draft.items.map((item) => {
             const food = foodById.get(item.foodId);
+            const itemSummary = draftSummary?.items.find((entry) => entry.itemId === item.id);
             return (
               <View key={item.id} style={{ gap: spacing.xs, borderTopColor: colors.border, borderTopWidth: 1, paddingTop: spacing.sm }}>
                 <Text allowFontScaling style={[typography.bodyStrong, { color: colors.textPrimary }]}>
@@ -943,10 +941,17 @@ export function MealComposerScreen() {
                 <Text allowFontScaling style={[typography.caption, { color: colors.textSecondary }]}>
                   {sourceNames[item.foodRef?.sourceId ?? sourceForFood(food ?? ({ id: item.foodId } as Food))]}
                 </Text>
+                {itemSummary ? (
+                  <Text allowFontScaling style={[typography.caption, { color: colors.textSecondary }]}>
+                    {coreMetricLine(itemSummary.metrics)}
+                  </Text>
+                ) : null}
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
                   <TextInput
                     accessibilityLabel={`Portion for ${food?.name ?? 'unavailable food'} in grams`}
-                    defaultValue={String(item.portion.gramWeight ?? 100)}
+                    // A serving-based portion stores no gram weight, so the
+                    // resolved value is the only honest thing to show here.
+                    defaultValue={String(itemSummary?.gramWeight ?? item.portion.gramWeight ?? 100)}
                     keyboardType="decimal-pad"
                     onEndEditing={(event) => updateItemGrams(item.id, event.nativeEvent.text)}
                     style={[inputStyle, { flex: 1 }]}
@@ -1019,7 +1024,42 @@ export function MealComposerScreen() {
           <Text accessibilityRole="header" allowFontScaling style={[typography.title2, { color: colors.textPrimary }]}>
             Results for “{submittedQuery}”
           </Text>
-          {sourceDefinitions.map(renderProvider)}
+          {resultTiers.length ? (
+            resultTiers.map((tier) => (
+              <Surface key={tier.id}>
+                <Text
+                  accessibilityRole="header"
+                  allowFontScaling
+                  style={[typography.title3, { color: colors.brand }]}
+                >
+                  {tier.title}
+                </Text>
+                {tier.loading ? (
+                  <ScreenState title="Searching…" message="Checking your food sources." />
+                ) : null}
+                {tier.notes.map((note) => (
+                  <Text
+                    key={note}
+                    allowFontScaling
+                    style={[typography.caption, { color: colors.textSecondary }]}
+                  >
+                    {note}
+                  </Text>
+                ))}
+                {tier.rows.map((row) => (
+                  <FoodResultRowItem
+                    key={row.key}
+                    row={row}
+                    disabled={busyAction !== null}
+                    onAdd={(added) => void addCandidate(added.candidate, added.gramWeight, added.servingId)}
+                    onRefine={(refined) => selectCandidate(refined.candidate)}
+                  />
+                ))}
+              </Surface>
+            ))
+          ) : (
+            <ScreenState title="No matches" message="Try a different word, or create the food manually." />
+          )}
         </View>
       ) : null}
 
@@ -1054,6 +1094,12 @@ export function MealComposerScreen() {
             <Text allowFontScaling style={[typography.body, { color: colors.textSecondary }]}>g</Text>
           </View>
           <ActionButton label="Add to event" disabled={busyAction !== null} onPress={() => void addSelected()} />
+          <ActionButton
+            label={favoriteIds.has(selected.food.id) ? 'Remove favorite' : 'Favorite'}
+            tone="secondary"
+            disabled={busyAction !== null}
+            onPress={() => void toggleFavorite(selected)}
+          />
         </Surface>
       ) : null}
 
