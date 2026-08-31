@@ -163,6 +163,8 @@ export default function OnboardingScreen() {
     return (
       <ScrollView
         contentInsetAdjustmentBehavior="automatic"
+        automaticallyAdjustKeyboardInsets
+        keyboardDismissMode="on-drag"
         contentContainerStyle={{ padding: spacing.md, backgroundColor: colors.background }}
         style={{ backgroundColor: colors.background }}
       >
@@ -181,6 +183,8 @@ export default function OnboardingScreen() {
   return (
     <ScrollView
       contentInsetAdjustmentBehavior="automatic"
+      automaticallyAdjustKeyboardInsets
+      keyboardDismissMode="on-drag"
       keyboardShouldPersistTaps="handled"
       contentContainerStyle={{ padding: spacing.md, gap: spacing.md, backgroundColor: colors.background }}
     >
