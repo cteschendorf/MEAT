@@ -81,12 +81,49 @@ export function openUsdaCoreDatabase(): Promise<SQLiteDatabase> {
   return databasePromise;
 }
 
-function ftsQuery(query: string): string {
+/** Shortest stem worth searching; below this a prefix matches far too much. */
+const MINIMUM_STEM_LENGTH = 3;
+/** Terms shorter than this are left alone; "is" or "as" carry no plural signal. */
+const MINIMUM_PLURAL_LENGTH = 4;
+
+/**
+ * Terms are matched as prefixes, so a plural can never reach its singular:
+ * "breasts"* does not match "breast". Pair each plural with a singular stem so
+ * "chicken breasts" finds what "chicken breast" finds.
+ *
+ * Over-stemming is safe here and under-stemming is not: every stem is searched
+ * as a prefix alongside the original term, so a shorter stem only widens the
+ * match, while a missing stem loses results entirely.
+ */
+export function singularStem(term: string): string | null {
+  const lower = term.toLowerCase();
+  if (lower.length < MINIMUM_PLURAL_LENGTH || !lower.endsWith('s')) return null;
+  // "grass" and "swiss" are not plurals.
+  if (lower.endsWith('ss')) return null;
+
+  const stem = lower.endsWith('ies')
+    ? `${term.slice(0, -3)}y`
+    : /(?:ch|sh|s|x|z|o)es$/.test(lower)
+      ? term.slice(0, -2)
+      : term.slice(0, -1);
+
+  if (stem.length < MINIMUM_STEM_LENGTH || stem === term) return null;
+  return stem;
+}
+
+function ftsPrefix(term: string): string {
+  return `"${term.replaceAll('"', '""')}"*`;
+}
+
+export function ftsQuery(query: string): string {
   return query
     .trim()
     .split(/\s+/)
     .filter(Boolean)
-    .map((term) => `"${term.replaceAll('"', '""')}"*`)
+    .map((term) => {
+      const stem = singularStem(term);
+      return stem ? `(${ftsPrefix(term)} OR ${ftsPrefix(stem)})` : ftsPrefix(term);
+    })
     .join(' AND ');
 }
 
