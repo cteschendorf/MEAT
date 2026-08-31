@@ -1,7 +1,7 @@
 import { Text, View } from 'react-native';
 import Svg, { Circle, Path } from 'react-native-svg';
 
-import type { TodayMetric, TodayMetricCode } from '@/services/today/snapshot';
+import { todayMetricCodes, type TodayMetric, type TodayMetricCode } from '@/services/today/snapshot';
 import { BrandMark } from '@/ui/components/brand-mark';
 import { Surface } from '@/ui/components/surface';
 import {
@@ -301,7 +301,10 @@ export interface NutritionDashboardProps {
 }
 
 export function NutritionDashboard({ metrics }: NutritionDashboardProps) {
-  const macroCodes: readonly TodayMetricCode[] = ['carbohydrate-g', 'fat-g', 'fiber-g'];
+  // Protein and calories get their own cards above; the rest follow canonical order.
+  const macroCodes: readonly TodayMetricCode[] = todayMetricCodes.filter(
+    (code) => code !== 'protein-g' && code !== 'energy-kcal',
+  );
   return (
     <View accessibilityLabel="Daily nutrition" style={{ gap: spacing.sm }}>
       <ProteinCard metric={metricForCode(metrics, 'protein-g')} />
