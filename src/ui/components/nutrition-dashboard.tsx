@@ -8,6 +8,7 @@ import {
   dashboardMetricLabels,
   metricAccessibilityLabel,
   metricForCode,
+  metricGoalImpact,
   metricGoalText,
   metricProgress,
   metricUnit,
@@ -19,11 +20,20 @@ import { useThemeColors } from '@/ui/theme/use-theme';
 const calorieArcCircumference = 2 * Math.PI * 30;
 const calorieArcLength = calorieArcCircumference * 0.78;
 
-function CaloriesArc({ progress }: { readonly progress: number | null }) {
+function CaloriesArc({
+  progress,
+  over = false,
+}: {
+  readonly progress: number | null;
+  /** Past a cap, the same full arc has to stop reading as a completed goal. */
+  readonly over?: boolean;
+}) {
   const colors = useThemeColors();
   const normalized = progress ?? 0;
   const emberLength = calorieArcLength * normalized * 0.68;
   const yellowLength = calorieArcLength * normalized * 0.32;
+  const leadStroke = over ? colors.destructive : colors.calories;
+  const trailStroke = over ? colors.destructive : colors.caloriesAccent;
   return (
     <Svg accessible={false} width={92} height={92} viewBox="0 0 80 80">
       {progress !== null ? (
@@ -45,7 +55,7 @@ function CaloriesArc({ progress }: { readonly progress: number | null }) {
             cy={40}
             r={30}
             fill="none"
-            stroke={colors.calories}
+            stroke={leadStroke}
             strokeWidth={8}
             strokeLinecap="round"
             strokeDasharray={`${emberLength} ${calorieArcCircumference - emberLength}`}
@@ -57,7 +67,7 @@ function CaloriesArc({ progress }: { readonly progress: number | null }) {
             cy={40}
             r={30}
             fill="none"
-            stroke={colors.caloriesAccent}
+            stroke={trailStroke}
             strokeWidth={8}
             strokeLinecap="round"
             strokeDasharray={`${yellowLength} ${calorieArcCircumference - yellowLength}`}
@@ -128,6 +138,9 @@ function ProteinCard({ metric }: { readonly metric: TodayMetric }) {
   const colors = useThemeColors();
   const progress = metricProgress(metric);
   const percentage = progress === null ? 0 : Math.round(progress * 100);
+  // Protein is normally a floor, where a full bar is the goal. It is only ever
+  // a warning if the user set protein as a maximum.
+  const over = metricGoalImpact(metric).tone === 'over';
   return (
     <Surface
       tone="elevated"
@@ -167,7 +180,7 @@ function ProteinCard({ metric }: { readonly metric: TodayMetric }) {
         >
           <View
             style={{
-              backgroundColor: colors.protein,
+              backgroundColor: over ? colors.destructive : colors.protein,
               borderRadius: radii.capsule,
               height: 10,
               minWidth: progress > 0 ? 8 : 0,
@@ -177,7 +190,7 @@ function ProteinCard({ metric }: { readonly metric: TodayMetric }) {
           >
             <View
               style={{
-                backgroundColor: colors.proteinAccent,
+                backgroundColor: over ? colors.destructive : colors.proteinAccent,
                 borderColor: colors.surface,
                 borderRadius: radii.capsule,
                 borderWidth: 2,
@@ -199,6 +212,8 @@ function CaloriesCard({ metric }: { readonly metric: TodayMetric }) {
   const colors = useThemeColors();
   const progress = metricProgress(metric);
   const percentage = progress === null ? undefined : Math.round(progress * 100);
+  const impact = metricGoalImpact(metric);
+  const over = impact.tone === 'over';
   return (
     <Surface
       style={{
@@ -218,14 +233,20 @@ function CaloriesCard({ metric }: { readonly metric: TodayMetric }) {
               accessibilityValue: { min: 0, max: 100, now: percentage, text: `${percentage} percent` },
             })}
       >
-        <CaloriesArc progress={progress} />
+        <CaloriesArc progress={progress} over={over} />
       </View>
       <View
         accessible
         accessibilityLabel={metricAccessibilityLabel(metric)}
         style={{ flex: 1, gap: spacing.xxs }}
       >
-        <Text allowFontScaling selectable style={[typography.bodyStrong, { color: colors.caloriesLabel }]}>Calories</Text>
+        <Text
+          allowFontScaling
+          selectable
+          style={[typography.bodyStrong, { color: over ? colors.destructive : colors.caloriesLabel }]}
+        >
+          Calories
+        </Text>
         <ValueLockup metric={metric} />
         <Text allowFontScaling selectable style={[typography.caption, { color: colors.textSecondary }]}>
           {metricGoalText(metric)}
@@ -237,16 +258,21 @@ function CaloriesCard({ metric }: { readonly metric: TodayMetric }) {
 
 function FlatMetricCard({ metric }: { readonly metric: TodayMetric }) {
   const colors = useThemeColors();
-  const displayColor = metric.code === 'carbohydrate-g'
-    ? colors.carbs
-    : metric.code === 'fat-g'
-      ? colors.fat
-      : colors.fiber;
-  const labelColor = metric.code === 'carbohydrate-g'
-    ? colors.carbsLabel
-    : metric.code === 'fat-g'
-      ? colors.fatLabel
-      : colors.fiberLabel;
+  const over = metricGoalImpact(metric).tone === 'over';
+  const displayColor = over
+    ? colors.destructive
+    : metric.code === 'carbohydrate-g'
+      ? colors.carbs
+      : metric.code === 'fat-g'
+        ? colors.fat
+        : colors.fiber;
+  const labelColor = over
+    ? colors.destructive
+    : metric.code === 'carbohydrate-g'
+      ? colors.carbsLabel
+      : metric.code === 'fat-g'
+        ? colors.fatLabel
+        : colors.fiberLabel;
   return (
     <View
       accessible
