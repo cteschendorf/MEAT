@@ -1,6 +1,6 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ScrollView, Text, TextInput, View } from 'react-native';
+import { Alert, ScrollView, Text, TextInput, View } from 'react-native';
 
 import type { Food, FoodRef, Recipe, SavedMeal, SavedMealItem } from '@/domain';
 import type {
@@ -322,6 +322,22 @@ export default function MealsRecipesScreen() {
     });
   }
 
+  function confirmDeleteSavedMeal(savedMeal: SavedMeal) {
+    if (actionGate.isActive) return;
+    Alert.alert(
+      'Delete saved meal?',
+      `“${savedMeal.name}” will be permanently deleted. Previously logged events and their nutrition will be kept.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete saved meal',
+          style: 'destructive',
+          onPress: () => void deleteSavedMeal(savedMeal),
+        },
+      ],
+    );
+  }
+
   function addRecipeIngredient() {
     if (actionGate.isActive) return;
     if (!selectedFood) {
@@ -440,6 +456,22 @@ export default function MealsRecipesScreen() {
     });
   }
 
+  function confirmDeleteRecipe(recipe: Recipe) {
+    if (actionGate.isActive) return;
+    Alert.alert(
+      'Delete recipe?',
+      `“${recipe.name}” will be permanently deleted. Previously logged events and their nutrition will be kept.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete recipe',
+          style: 'destructive',
+          onPress: () => void deleteRecipe(recipe),
+        },
+      ],
+    );
+  }
+
   async function addRecipe(recipe: Recipe) {
     if (!services) return;
     await runMutation(`adding-recipe:${recipe.id}`, async () => {
@@ -536,7 +568,7 @@ export default function MealsRecipesScreen() {
           <ActionButton label="Add all items to event" onPress={() => void addSavedMeal(savedMeal)} disabled={busy} />
           <ActionButton label="Duplicate" tone="secondary" onPress={() => void duplicateSavedMeal(savedMeal)} disabled={busy} />
           <ActionButton label="Edit" tone="secondary" onPress={() => editSavedMeal(savedMeal)} disabled={busy} />
-          <ActionButton label="Delete" tone="secondary" onPress={() => void deleteSavedMeal(savedMeal)} disabled={busy} />
+          <ActionButton label="Delete saved meal" tone="destructive" onPress={() => confirmDeleteSavedMeal(savedMeal)} disabled={busy} />
         </Surface>
       ))}
 
@@ -575,7 +607,7 @@ export default function MealsRecipesScreen() {
             <ActionButton label="Add servings to event" onPress={() => void addRecipe(recipe)} disabled={busy} />
             <ActionButton label="Duplicate" tone="secondary" onPress={() => void duplicateRecipe(recipe)} disabled={busy} />
             <ActionButton label="Edit" tone="secondary" onPress={() => editRecipe(recipe)} disabled={busy} />
-            <ActionButton label="Delete" tone="secondary" onPress={() => void deleteRecipe(recipe)} disabled={busy} />
+            <ActionButton label="Delete recipe" tone="destructive" onPress={() => confirmDeleteRecipe(recipe)} disabled={busy} />
           </Surface>
         );
       })}

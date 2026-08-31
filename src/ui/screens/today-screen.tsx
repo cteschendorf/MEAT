@@ -94,6 +94,14 @@ export function TodayScreen() {
     setDate(new Date());
   }
 
+  function retryLoad() {
+    requestGate.invalidate();
+    setSnapshot(null);
+    setTimelineEntries([]);
+    setError(null);
+    void load();
+  }
+
   function openComposerForSelectedDay() {
     const now = new Date();
     const occurredAt = new Date(date);
@@ -172,7 +180,17 @@ export function TodayScreen() {
         )}
       </View>
 
-      {error ? <ScreenState title="Today unavailable" message={error} role="alert" /> : null}
+      {error ? (
+        <Surface>
+          <ScreenState title="Today unavailable" message={error} role="alert" />
+          <ActionButton
+            label="Try again"
+            onPress={retryLoad}
+            style={{ marginHorizontal: spacing.lg, marginBottom: spacing.lg }}
+            tone="secondary"
+          />
+        </Surface>
+      ) : null}
       {!snapshot && !error ? <ScreenState title="Loading" message="Calculating nutrition and meal history…" /> : null}
 
       {snapshot ? (

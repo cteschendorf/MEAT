@@ -54,6 +54,7 @@ export default function OnboardingScreen() {
   const [drafts, setDrafts] = useState<readonly GoalDraft[]>(draftsFromInputs([]));
   const [editingExisting, setEditingExisting] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [loadAttempt, setLoadAttempt] = useState(0);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const saveGate = useRef(new ExclusiveActionGate()).current;
@@ -86,7 +87,7 @@ export default function OnboardingScreen() {
     return () => {
       active = false;
     };
-  }, []);
+  }, [loadAttempt]);
 
   const activeGoalCount = useMemo(() => drafts.filter((draft) => draft.mode !== 'none').length, [drafts]);
 
@@ -99,6 +100,12 @@ export default function OnboardingScreen() {
   function cycleMode(draft: GoalDraft) {
     const index = goalModes.indexOf(draft.mode);
     updateDraft(draft.nutrientCode, { mode: goalModes[(index + 1) % goalModes.length] ?? 'none' });
+  }
+
+  function retryInitialization() {
+    setMessage(null);
+    setLoading(true);
+    setLoadAttempt((current) => current + 1);
   }
 
   async function save() {
@@ -151,6 +158,25 @@ export default function OnboardingScreen() {
   }
 
   if (loading) return <ScreenState title="Loading setup" message="Preparing your local nutrition settings." />;
+
+  if (!service) {
+    return (
+      <ScrollView
+        contentInsetAdjustmentBehavior="automatic"
+        contentContainerStyle={{ padding: spacing.md, backgroundColor: colors.background }}
+        style={{ backgroundColor: colors.background }}
+      >
+        <Surface>
+          <ScreenState
+            title="Setup unavailable"
+            message={message ?? 'MEAT could not open your local nutrition settings.'}
+            role="alert"
+          />
+          <ActionButton label="Try again" onPress={retryInitialization} />
+        </Surface>
+      </ScrollView>
+    );
+  }
 
   return (
     <ScrollView
