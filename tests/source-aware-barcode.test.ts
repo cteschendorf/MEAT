@@ -8,6 +8,8 @@ import {
   SourceAwareBarcodeService,
   cameraPermissionPlan,
   expandUpcE,
+  gs1CheckDigitValid,
+  interpretScannedBarcode,
   normalizeRetailBarcode,
   retailBarcodeVariants,
   type SourceAwareBarcodeDiscovery,
@@ -82,6 +84,83 @@ test('retail formats normalize and bridge EAN-13, UPC-A, and UPC-E identifiers',
   ]);
   assert.throws(() => normalizeRetailBarcode('1234'), /EAN-8/);
   assert.throws(() => normalizeRetailBarcode('30176204220O3', 'ean13'), /digits only/);
+});
+
+test('iOS reports every UPC-A as a twelve-digit ean13 scan, and that must resolve', () => {
+  // expo-camera on iOS maps `upc_a` onto AVMetadataObject.ObjectType.ean13 —
+  // there is no UPC-A metadata type — and then strips a leading zero from the
+  // payload. So a US grocery item arrives as { type: 'ean13', data: 12 digits },
+  // and so does any EAN-13 that genuinely begins with a zero. Treating the
+  // reported symbology as a length contract rejected both, which is why the
+  // scanner failed on exactly the products the manual field accepted.
+  const scan = interpretScannedBarcode('012345678905', 'ean13');
+  assert.equal(scan.ok, true);
+  if (!scan.ok) return;
+  assert.equal(scan.digits, '012345678905');
+
+  // Both filings of the same product are tried, so it does not matter whether a
+  // provider stores it as UPC-A or as zero-padded EAN-13.
+  assert.deepEqual(retailBarcodeVariants(scan.digits, scan.format), [
+    '012345678905',
+    '0012345678905',
+  ]);
+});
+
+test('a thirteen-digit scan that starts with zero also offers its UPC-A form', () => {
+  assert.deepEqual(retailBarcodeVariants('0012345678905', 'ean13'), [
+    '0012345678905',
+    '012345678905',
+  ]);
+});
+
+test('the GS1 check digit accepts real barcodes and rejects transposed misreads', () => {
+  assert.equal(gs1CheckDigitValid('3017620422003'), true);  // Nutella, EAN-13
+  assert.equal(gs1CheckDigitValid('96385074'), true);       // EAN-8
+  assert.equal(gs1CheckDigitValid('012345678905'), true);   // UPC-A
+  assert.equal(gs1CheckDigitValid('0012345678905'), true);  // same, zero-padded
+  assert.equal(gs1CheckDigitValid('3017620422013'), false); // one digit off
+  assert.equal(gs1CheckDigitValid('3017620422030'), false); // last two swapped
+});
+
+test('unusable camera frames are reported, never thrown', () => {
+  // Every rejection path has to be total: these run once per frame while the
+  // user is still aiming, and an exception there became an error message.
+  assert.deepEqual(interpretScannedBarcode('https://example.com', 'qr'), {
+    ok: false,
+    reason: 'unsupported-symbology',
+  });
+  assert.deepEqual(interpretScannedBarcode('12345', 'ean13'), {
+    ok: false,
+    reason: 'not-a-retail-barcode',
+  });
+  assert.deepEqual(interpretScannedBarcode('3017620422013', 'ean13'), {
+    ok: false,
+    reason: 'check-digit',
+  });
+});
+
+test('a typed eight-digit code is tried as both EAN-8 and UPC-E', () => {
+  // Nothing about eight digits says which one it is, and the manual field has
+  // no symbology to consult, so guessing EAN-8 silently lost every UPC-E.
+  assert.deepEqual(retailBarcodeVariants('04210005'), [
+    '04210005',
+    '042000001005',
+    '0042000001005',
+  ]);
+  // A scanner that positively said EAN-8 is believed.
+  assert.deepEqual(retailBarcodeVariants('04210005', 'ean8'), ['04210005']);
+});
+
+test('deduplication survives a symbology that changes between frames', () => {
+  let timestamp = 1_000;
+  const deduplicator = new BarcodeScanDeduplicator(1_500, () => timestamp);
+  // The same physical label can be reported under different symbologies from
+  // one frame to the next; keying on the format let one product through twice.
+  assert.equal(deduplicator.accept('012345678905', 'ean13'), true);
+  assert.equal(deduplicator.accept('012345678905', 'upc_a'), false);
+  // An unusable value is declined rather than thrown.
+  assert.equal(deduplicator.accept('nonsense', 'ean13'), false);
+  assert.equal(deduplicator.accept('12345', 'ean13'), false);
 });
 
 test('camera event deduplication closes the same-render race and allows later scans', () => {
