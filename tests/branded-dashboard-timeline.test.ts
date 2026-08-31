@@ -87,27 +87,42 @@ function foodsRepository(values: readonly Food[]): FoodRepository {
   };
 }
 
-function goalMetric(ratio: number): TodayMetric {
+function goalMetric(value: number): TodayMetric {
+  const minimum = 150;
   const goal: NutritionGoal = {
     id: 'goal:protein' as GoalId,
     nutrientCode: 'protein-g',
-    target: { mode: 'minimum', minimum: 150 },
+    target: { mode: 'minimum', minimum },
     effectiveFrom: '2026-08-01T00:00:00.000Z' as ISODateTime,
   };
+  // The fixture used to take a ratio independently of the value, which let it
+  // describe a state the engine cannot produce: 126 g against a 150 g floor
+  // reported as 140% complete. Progress is now derived from the value and the
+  // target through the shared goal module (THI-333), so the two cannot disagree.
   return {
     code: 'protein-g',
-    value: 126.04,
+    value,
     state: 'known',
-    goal: { goal, current: 126.04, status: 'below', ratio, remaining: 23.96 },
+    goal: {
+      goal,
+      current: value,
+      status: value >= minimum ? 'met' : 'below',
+      ratio: value / minimum,
+      remaining: Math.max(0, minimum - value),
+    },
   };
 }
 
 test('dashboard formatting distinguishes unknown values and clamps visual progress', () => {
-  const metric = goalMetric(1.4);
+  const metric = goalMetric(126.04);
   assert.equal(metricValueText(metric), '126');
   assert.equal(metricGoalText(metric), '24 g to goal');
-  assert.equal(metricProgress(metric), 1);
+  assert.ok(Math.abs((metricProgress(metric) ?? 0) - 126.04 / 150) < 1e-9);
   assert.match(metricAccessibilityLabel(metric), /Protein, 126 g\. 24 g to goal/);
+
+  // Past a floor the bar saturates rather than overflowing its track.
+  assert.equal(metricProgress(goalMetric(210)), 1);
+  assert.equal(metricGoalText(goalMetric(210)), 'Goal met');
 
   const unknown: TodayMetric = { code: 'fiber-g', value: null, state: 'unknown', goal: null };
   assert.equal(metricValueText(unknown), '—');

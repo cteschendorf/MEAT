@@ -2,6 +2,9 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import { goalImpact, goalImpactAccessibilityLabel } from '../src/ui/goal-impact';
+import type { TodayMetric } from '../src/services/today/snapshot';
+import type { GoalId, ISODateTime } from '../src/domain/shared/ids';
+import { metricGoalImpact, metricGoalText, metricProgress } from '../src/ui/nutrition-dashboard-model';
 
 test('a minimum reads as progress toward a floor, and clearing it is success', () => {
   const below = goalImpact({
@@ -181,4 +184,58 @@ test('each row reads as a sentence for screen readers', () => {
     ),
     'Calories, 1965 of 1840 kcal limit, this food adds 165 kcal, over by 125 kcal.',
   );
+});
+
+function dashboardMetric(
+  code: TodayMetric['code'],
+  value: number | null,
+  target: { mode: 'minimum' | 'maximum' | 'none'; minimum?: number; maximum?: number } | null,
+  status: 'below' | 'met' | 'within' | 'exceeded' | 'informational' = 'below',
+): TodayMetric {
+  return {
+    code,
+    value,
+    state: value === null ? 'unknown' : 'known',
+    goal: target
+      ? {
+          goal: {
+            id: `goal:${code}` as GoalId,
+            nutrientCode: code,
+            target,
+            effectiveFrom: '2026-08-31T00:00:00.000Z' as ISODateTime,
+          },
+          current: value ?? 0,
+          status,
+          ratio: null,
+          remaining: null,
+        }
+      : null,
+  };
+}
+
+test('the dashboard reads targets through the same rules as the detail sheet', () => {
+  // Both surfaces consume one module, so a filled protein bar and a filled
+  // calorie arc cannot drift into meaning the same thing on one screen and
+  // opposite things on the other (THI-333).
+  const protein = dashboardMetric('protein-g', 200, { mode: 'minimum', minimum: 180 }, 'met');
+  const calories = dashboardMetric('energy-kcal', 2000, { mode: 'maximum', maximum: 1840 }, 'exceeded');
+
+  assert.equal(metricProgress(protein), 1);
+  assert.equal(metricProgress(calories), 1);
+  assert.equal(metricGoalImpact(protein).tone, 'good');
+  assert.equal(metricGoalImpact(calories).tone, 'over');
+
+  // A passed cap says by how much: "Above target" alone reads the same whether
+  // you are 5 kcal over or 500.
+  assert.equal(metricGoalText(calories), 'Above target by 160 kcal');
+});
+
+test('the dashboard no longer draws a full bar for a target it cannot divide by', () => {
+  // A zero cap makes the engine's ratio infinite. The dashboard used to clamp
+  // that to 1 and render a completed arc for a goal that cannot be evaluated.
+  assert.equal(metricProgress(dashboardMetric('energy-kcal', 500, { mode: 'maximum', maximum: 0 })), null);
+  // No target at all stays no target, rather than an empty bar claiming zero
+  // percent of a goal the user never set.
+  assert.equal(metricProgress(dashboardMetric('fiber-g', 12, null)), null);
+  assert.equal(metricProgress(dashboardMetric('fiber-g', 12, { mode: 'none' })), null);
 });
