@@ -82,6 +82,54 @@ function offProduct(code = '3017620422003') {
   };
 }
 
+test('a package serving stated in ounces is kept, not discarded for 100 g', async () => {
+  // Only a literal "g" used to be recognised, so every serving expressed in
+  // ounces lost its gram weight, was filtered out of the portion list, and the
+  // food fell back to a synthesized 100 g that nobody weighs out.
+  const provider = new OpenFoodFactsProvider({
+    cache: new MemoryProviderCache(),
+    clock: () => new Date(START),
+    fetch: async () => json({
+      status: 'success',
+      product: {
+        ...offProduct('0044000032029'),
+        serving_size: '1 oz (28 g)',
+        serving_quantity: '1',
+        serving_quantity_unit: 'oz',
+      },
+    }),
+  });
+
+  const result = await provider.lookupBarcode('0044000032029');
+  const serving = result.candidate?.portions.find((portion) => portion.isDefault);
+  assert.ok(serving, 'the package serving survives');
+  // One avoirdupois ounce is exactly 28.349523125 g.
+  assert.ok(Math.abs((serving.gramWeight ?? 0) - 28.349523125) < 1e-9);
+});
+
+test('a serving stated in a volume unit keeps its label but claims no weight', async () => {
+  // A serving of "250 ml" cannot become grams without knowing what the product
+  // weighs per millilitre, and that is not something to invent.
+  const provider = new OpenFoodFactsProvider({
+    cache: new MemoryProviderCache(),
+    clock: () => new Date(START),
+    fetch: async () => json({
+      status: 'success',
+      product: {
+        ...offProduct('5449000000996'),
+        serving_size: '250 ml',
+        serving_quantity: '250',
+        serving_quantity_unit: 'ml',
+      },
+    }),
+  });
+
+  const result = await provider.lookupBarcode('5449000000996');
+  const serving = result.candidate?.portions.find((portion) => portion.label === '250 ml');
+  assert.ok(serving, 'the serving is still described');
+  assert.equal(serving.gramWeight, undefined);
+});
+
 test('stable refs generate reversible provider-scoped food IDs', () => {
   const id = foodIdForRef({ sourceId: 'open-food-facts', recordId: '123/45' as SourceRecordId });
   assert.equal(id, 'open-food-facts:123%2F45');
