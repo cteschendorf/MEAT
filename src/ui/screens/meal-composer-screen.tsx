@@ -15,7 +15,13 @@ import {
   View,
 } from 'react-native';
 
-import type { Food, MealContextInput, MealLocation, MediaAsset } from '@/domain';
+import type {
+  Food,
+  MassUnitPreference,
+  MealContextInput,
+  MealLocation,
+  MediaAsset,
+} from '@/domain';
 import type {
   FoodCandidate,
   FoodSearchGroup,
@@ -217,6 +223,8 @@ export function MealComposerScreen() {
   // What the day already holds, so the sheet can answer "does this fit" before
   // the food is committed rather than after (THI-307).
   const [dayMetrics, setDayMetrics] = useState<readonly TodayMetric[]>([]);
+  // Which unit a typed amount starts in. Grams until Settings says otherwise.
+  const [massUnit, setMassUnit] = useState<MassUnitPreference>('g');
   const [pickerMode, setPickerMode] = useState<'date' | 'time' | null>(null);
   const [showContext, setShowContext] = useState(false);
   const [customMealName, setCustomMealName] = useState(false);
@@ -536,6 +544,21 @@ export function MealComposerScreen() {
     setSelected(candidate);
     setMessage(null);
   }
+
+  useEffect(() => {
+    if (!services) return;
+    let active = true;
+    void services.userPreferences
+      .get()
+      .then((preferences) => {
+        if (active && preferences) setMassUnit(preferences.massUnit);
+      })
+      // A missing preference is just the default, not a reason to surface an error.
+      .catch(() => undefined);
+    return () => {
+      active = false;
+    };
+  }, [services]);
 
   useEffect(() => {
     if (!services) return;
@@ -1301,6 +1324,7 @@ export function MealComposerScreen() {
         sourceLabel={selected ? sourceNames[selected.ref.sourceId] : ''}
         favorite={selected ? favoriteIds.has(selected.food.id) : false}
         standings={dayStandings}
+        preferredMassUnit={massUnit}
         pendingCount={session.draft.items.length}
         busy={busyAction !== null}
         onClose={() => setSelected(null)}
