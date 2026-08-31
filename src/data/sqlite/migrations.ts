@@ -408,6 +408,24 @@ const migrations: readonly Migration[] = [
       `);
     },
   },
+  {
+    version: 12,
+    name: 'durable-composer-drafts',
+    async up(db) {
+      // Composer drafts were session-local memory, so backgrounding the app
+      // lost an in-progress meal with no warning (THI-305). They now survive a
+      // restart and are cleared on save, cancel or private-data deletion.
+      await db.execAsync(`
+        CREATE TABLE IF NOT EXISTS composer_drafts (
+          id TEXT PRIMARY KEY NOT NULL,
+          payload TEXT NOT NULL,
+          updated_at TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS composer_drafts_updated_idx
+          ON composer_drafts (updated_at DESC);
+      `);
+    },
+  },
 ];
 
 export async function migrateDatabase(db: SQLiteDatabase): Promise<void> {
