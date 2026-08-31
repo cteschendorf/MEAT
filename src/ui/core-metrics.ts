@@ -54,3 +54,19 @@ export function formatCoreMetrics(facts: NutritionFacts | null): readonly CoreMe
 export function coreMetricLine(metrics: readonly CoreMetric[]): string {
   return metrics.map((metric) => `${metric.text} ${metric.label}`).join(' · ');
 }
+
+/**
+ * The raw amount for one nutrient, or `null` when it is unknown.
+ *
+ * `formatCoreMetrics` is for display and deliberately collapses unknown into an
+ * em dash. Anything that has to do arithmetic — goal impact, projections —
+ * needs the number and the absence kept apart.
+ */
+export function coreMetricAmount(
+  facts: NutritionFacts | null,
+  code: CoreNutrientCode,
+): number | null {
+  const entry = facts?.nutrients.find((nutrient) => nutrient.nutrient.code === code);
+  if (!entry || entry.state === 'unknown' || entry.value === undefined) return null;
+  return Number.isFinite(entry.value) && entry.value >= 0 ? entry.value : null;
+}

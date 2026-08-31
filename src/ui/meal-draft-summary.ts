@@ -28,6 +28,8 @@ export interface DraftItemSummary {
 export interface DraftSummary {
   readonly items: readonly DraftItemSummary[];
   readonly totals: readonly CoreMetric[];
+  /** The same totals unformatted, for callers that project rather than display. */
+  readonly totalFacts: NutritionFacts | null;
   /** Items whose food or portion could not be resolved. */
   readonly unavailableCount: number;
 }
@@ -80,6 +82,6 @@ export function summarizeDraft(
   // Totals cover what could be resolved. The caller surfaces the unavailable
   // count alongside, rather than blanking an otherwise good running total —
   // a partial number with a caveat beats an em dash that hides real progress.
-  const totals = formatCoreMetrics(resolved.length ? aggregateNutritionFacts(resolved) : null);
-  return { items, totals, unavailableCount };
+  const totalFacts = resolved.length ? aggregateNutritionFacts(resolved) : null;
+  return { items, totals: formatCoreMetrics(totalFacts), totalFacts, unavailableCount };
 }
