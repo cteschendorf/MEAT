@@ -4,7 +4,9 @@ import test from 'node:test';
 import type { Food, FoodCandidate } from '../src/domain';
 import type { FoodId, FoodServingId, ISODateTime, SourceRecordId } from '../src/domain/shared/ids';
 import {
+  defaultAmountForChoice,
   defaultPortionChoice,
+  densityForCandidate,
   goalImpactsForDetail,
   gramsForChoice,
   hasAnyTarget,
@@ -12,6 +14,8 @@ import {
   parseQuantity,
   portionChoicesFor,
   portionSummary,
+  servingIdForChoice,
+  unitChoicesFor,
 } from '../src/ui/food-detail-model';
 
 const now = '2026-08-31T12:00:00.000Z' as ISODateTime;
@@ -52,39 +56,84 @@ function chicken(): FoodCandidate {
   };
 }
 
-test('the default portion is the named serving the food prefers, not a bare 100 g', () => {
+test('the package serving is what the picker opens on, not a synthesized 100 g', () => {
+  // This is the point of the change: a scanned product should open on the
+  // serving printed on the package, which is what people actually eat.
   const choice = defaultPortionChoice(chicken());
+  assert.equal(choice.kind, 'serving');
   assert.equal(choice.label, '1 medium breast');
   assert.equal(choice.gramWeight, 140);
-  // The weight option carries no serving id, so identity cannot be the serving
-  // id: "nothing chosen yet" would match it and quietly beat the food's own
-  // preferred serving.
-  assert.notEqual(choice.key, 'weight');
+  assert.equal(servingIdForChoice(choice), 'usda-core:5062:breast');
 });
 
-test('a weight option is always offered, and never duplicated', () => {
-  const withHundred = portionChoicesFor(chicken());
-  assert.equal(withHundred.filter((choice) => choice.label === '100 g').length, 1);
+test('a food that names no serving falls through to the preferred unit', () => {
+  const stripped: FoodCandidate = { ...chicken(), portions: [] };
 
-  // A food that defines no usable serving still gets somewhere to start.
-  const bare = chicken();
-  const stripped: FoodCandidate = { ...bare, portions: [] };
-  assert.deepEqual(portionChoicesFor(stripped), [
-    { key: 'weight', servingId: undefined, label: '100 g', gramWeight: 100 },
+  const metric = defaultPortionChoice(stripped);
+  assert.equal(metric.kind, 'unit');
+  assert.equal(metric.label, 'g');
+  assert.equal(metric.gramWeight, 1);
+  // Typing a weight is not a claim about a serving, so none is recorded.
+  assert.equal(servingIdForChoice(metric), undefined);
+
+  const imperial = defaultPortionChoice(stripped, 'oz');
+  assert.equal(imperial.label, 'oz');
+  assert.ok(Math.abs(imperial.gramWeight - 28.349523125) < 1e-9);
+});
+
+test('servings come before units, and the preferred unit leads its group', () => {
+  const choices = portionChoicesFor(chicken(), 'oz');
+  const servings = choices.filter((choice) => choice.kind === 'serving');
+  const units = choices.filter((choice) => choice.kind === 'unit');
+
+  assert.deepEqual(servings.map((choice) => choice.label), [
+    '1 medium breast',
+    '1 cup, diced',
+    '100 g',
   ]);
+  // A serving is what someone ate; a unit is how they measured it.
+  assert.ok(choices.indexOf(servings[0]!) < choices.indexOf(units[0]!));
+  assert.equal(units[0]?.label, 'oz');
+  assert.equal(portionChoicesFor(chicken(), 'g').filter((c) => c.kind === 'unit')[0]?.label, 'g');
 });
 
-test('quantity multiplies the chosen serving, which is the whole point of the sheet', () => {
-  const choice = defaultPortionChoice(chicken());
-  // "2 chicken breasts" was unreachable before this: every write site pinned
-  // quantity to 1 and stored a bare weight (THI-308).
-  assert.equal(gramsForChoice(choice, 2), 280);
-  assert.equal(portionSummary(choice, 2), '2 × 1 medium breast · 280 g');
-  assert.equal(portionSummary(choice, 1), '1 medium breast · 140 g');
+test('the amount multiplies whichever choice is selected', () => {
+  const serving = defaultPortionChoice(chicken());
+  // "2 chicken breasts" was unreachable before THI-308: every write site pinned
+  // quantity to 1 and stored a bare weight.
+  assert.equal(gramsForChoice(serving, 2), 280);
+  assert.equal(portionSummary(serving, 2), '2 × 1 medium breast · 280 g');
+  assert.equal(portionSummary(serving, 1), '1 medium breast · 140 g');
 
-  // A portion that is already just a weight is not restated in parentheses.
-  const weight = { key: 'weight', servingId: undefined, label: '100 g', gramWeight: 100 };
-  assert.equal(portionSummary(weight, 1.5), '150 g');
+  // A unit reads as an amount of that unit rather than a multiplier.
+  const ounces = unitChoicesFor(null, 'oz')[0]!;
+  assert.ok(Math.abs(gramsForChoice(ounces, 6) - 170.0971) < 0.001);
+  assert.equal(portionSummary(ounces, 6), '6 oz · 170.1 g');
+
+  // Grams need no restatement: "150 g" is already the whole answer.
+  const grams = unitChoicesFor(null, 'g')[0]!;
+  assert.equal(portionSummary(grams, 150), '150 g');
+});
+
+test('volume units are offered only to a food whose own data gives a density', () => {
+  // Chicken breast describes itself in cups, so its density is knowable and
+  // fluid ounces are safe to offer.
+  const density = densityForCandidate(chicken());
+  assert.ok(density !== null && Math.abs(density - 135 / 236.5882365) < 1e-9);
+  const labels = portionChoicesFor(chicken()).map((choice) => choice.label);
+  assert.ok(labels.includes('fl oz'));
+  assert.ok(labels.includes('cup'));
+
+  // Strip the volumetric portion and the food can no longer be measured by
+  // volume, because nothing here will assume a density for it.
+  const solid: FoodCandidate = {
+    ...chicken(),
+    portions: chicken().portions.filter((portion) => !portion.label.includes('cup')),
+  };
+  assert.equal(densityForCandidate(solid), null);
+  const solidLabels = portionChoicesFor(solid).map((choice) => choice.label);
+  assert.ok(!solidLabels.includes('fl oz'));
+  assert.ok(solidLabels.includes('oz'), 'mass units stay available to every food');
 });
 
 test('metrics scale with quantity and keep an unknown nutrient unknown', () => {
@@ -142,4 +191,23 @@ test('every core nutrient gets a row, targeted or not', () => {
     hasAnyTarget(goalImpactsForDetail([{ code: 'protein-g', current: 10, target: null }], facts)),
     false,
   );
+});
+
+test('the amount field starts somewhere a person would recognise', () => {
+  // One of a named serving is what "a serving" means.
+  assert.equal(defaultAmountForChoice(defaultPortionChoice(chicken())), 1);
+
+  // One gram is not a portion of anything. A bare unit starts at whatever is
+  // closest to 100 g, the basis the nutrition is stated against.
+  const [grams] = unitChoicesFor(null, 'g');
+  const [ounces] = unitChoicesFor(null, 'oz');
+  assert.equal(defaultAmountForChoice(grams!), 100);
+  assert.equal(defaultAmountForChoice(ounces!), 3.5);
+
+  // A food with no usable serving is the case that made this matter: it falls
+  // through to a unit, and 1 g would have been the opening portion.
+  const stripped: FoodCandidate = { ...chicken(), portions: [] };
+  const opening = defaultPortionChoice(stripped);
+  assert.equal(defaultAmountForChoice(opening), 100);
+  assert.equal(gramsForChoice(opening, defaultAmountForChoice(opening)), 100);
 });

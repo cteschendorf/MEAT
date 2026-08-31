@@ -76,7 +76,7 @@ describe('food detail sheet', () => {
     const added: { gramWeight: number; quantity: number; servingId: string | undefined }[] = [];
     const view = await render(sheet({ onAdd: (_candidate, portion) => added.push(portion) }));
 
-    fireEvent.changeText(await view.findByLabelText('How many servings'), '2');
+    fireEvent.changeText(await view.findByLabelText('Amount'), '2');
     fireEvent.press(await view.findByText('Add to event'));
 
     // The serving reference survives alongside the count, which is what lets the
@@ -88,12 +88,12 @@ describe('food detail sheet', () => {
     const added: unknown[] = [];
     const view = await render(sheet({ onAdd: () => added.push(true) }));
 
-    fireEvent.changeText(await view.findByLabelText('How many servings'), '0');
+    fireEvent.changeText(await view.findByLabelText('Amount'), '0');
     fireEvent.press(await view.findByText('Add to event'));
 
     expect(added).toEqual([]);
     expect(
-      await view.findByText('Enter how many you had, as a number greater than zero.'),
+      await view.findByText('Enter an amount greater than zero.'),
     ).toBeTruthy();
   });
 
@@ -115,6 +115,59 @@ describe('food detail sheet', () => {
     expect(await view.findByText('Add to event')).toBeTruthy();
     fireEvent.press(await view.findByText('Log 2 foods'));
     expect(logged).toBe(1);
+  });
+
+  it('opens on the package serving rather than a synthesized 100 g', async () => {
+    const view = await render(sheet());
+    // The scanned or looked-up product should start where the label starts.
+    expect(await view.findByText('1 medium breast · 140 g · USDA')).toBeTruthy();
+  });
+
+  it('measures in ounces when Settings asks for ounces', async () => {
+    const added: { gramWeight: number; quantity: number; servingId: string | undefined }[] = [];
+    const view = await render(
+      sheet({ preferredMassUnit: 'oz', onAdd: (_candidate, portion) => added.push(portion) }),
+    );
+
+    fireEvent.press(await view.findByLabelText('Measure in oz'));
+    fireEvent.changeText(await view.findByLabelText('Amount'), '6');
+    fireEvent.press(await view.findByText('Add to event'));
+
+    // Six ounces is 170.097 g exactly, and a typed weight is not a serving.
+    expect(added).toHaveLength(1);
+    expect(added[0]?.servingId).toBeUndefined();
+    expect(added[0]?.gramWeight).toBeCloseTo(170.0971, 3);
+  });
+
+  it('offers volume only to a food whose own data says what it weighs', async () => {
+    // This food names no volume portion, so no density can be derived for it
+    // and fluid ounces would have to be invented.
+    const view = await render(sheet());
+    expect(await view.findByLabelText('Measure in g')).toBeTruthy();
+    expect(view.queryByLabelText('Measure in fl oz')).toBeNull();
+
+    // Give it a cup measure and the same food becomes measurable by volume.
+    const withCup: FoodCandidate = {
+      ...candidate,
+      portions: [
+        ...candidate.portions,
+        { id: 'usda-core:5062:cup' as FoodServingId, label: '1 cup, diced', quantity: 1, unit: 'serving', gramWeight: 135 },
+      ],
+    };
+    const volumetric = await render(sheet({ candidate: withCup }));
+    expect(await volumetric.findByLabelText('Measure in fl oz')).toBeTruthy();
+  });
+
+  it('re-anchors the amount when the unit changes', async () => {
+    const added: { gramWeight: number }[] = [];
+    const view = await render(sheet({ onAdd: (_candidate, portion) => added.push(portion) }));
+
+    // Opens on one breast, 140 g.
+    fireEvent.press(await view.findByLabelText('Measure in g'));
+    fireEvent.press(await view.findByText('Add to event'));
+
+    // Switching to grams must not carry "1" over and log a single gram.
+    expect(added[0]?.gramWeight).toBe(100);
   });
 
   it('closes back to the results without committing anything', async () => {
