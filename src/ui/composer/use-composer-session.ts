@@ -88,6 +88,11 @@ export function useComposerSession(options: SessionOptions): ComposerSessionCont
         if (!nextSession && params.mealId) {
           const draft = await nextServices.mealComposer.loadDraft(params.mealId as MealId);
           const existingMedia = await nextServices.media.listByIds(draft.context.mediaIds ?? []);
+          // Backing out during a cold-database load used to land here anyway,
+          // registering a subscription that held a dead component's setters
+          // and putting a session in the store that nothing could ever clear.
+          // Both awaits are slow enough for someone to have left (THI-316).
+          if (!active) return;
           initialExistingMedia.current = existingMedia;
           nextSession = { draft, existingMedia, stagedPhotos: [] };
         }
