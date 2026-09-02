@@ -20,6 +20,14 @@ export interface EntryTab {
   readonly id: EntryTabId;
   /** What the tab is called. Short: five of these share one row. */
   readonly title: string;
+  /**
+   * SF Symbol name, drawn beside the title.
+   *
+   * Five terse words in a row are hard to tell apart at a glance; the glyph
+   * is what makes the row scannable, and it is the same convention the app's
+   * own bottom bar uses.
+   */
+  readonly icon: string;
   /** Read instead of the title by a screen reader, where the title is terse. */
   readonly accessibilityLabel: string;
   /**
@@ -39,16 +47,19 @@ export const entryTabs: readonly EntryTab[] = [
   {
     id: 'scan',
     title: 'Scan',
+    icon: 'barcode.viewfinder',
     accessibilityLabel: 'Scan a barcode',
   },
   {
     id: 'search',
     title: 'Search',
+    icon: 'magnifyingglass',
     accessibilityLabel: 'Search for a food',
   },
   {
     id: 'ai',
     title: 'AI',
+    icon: 'sparkles',
     accessibilityLabel: 'Describe a meal in your own words',
     pending: {
       title: 'Not built yet',
@@ -59,11 +70,13 @@ export const entryTabs: readonly EntryTab[] = [
   {
     id: 'quick-add',
     title: 'Quick Add',
+    icon: 'bolt',
     accessibilityLabel: 'Add a food that is not in any database',
   },
   {
     id: 'library',
     title: 'Library',
+    icon: 'books.vertical',
     accessibilityLabel: 'Your foods, saved meals and recipes',
   },
 ];
