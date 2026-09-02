@@ -46,7 +46,7 @@
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "com.thingcorp.meat",
-      "buildNumber": "4",
+      "buildNumber": "5",
       "icon": {
         "light": "./assets/brand/app-icon-light.png",
         "dark": "./assets/brand/app-icon-dark.png",
