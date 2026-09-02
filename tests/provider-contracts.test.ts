@@ -107,9 +107,20 @@ test('a package serving stated in ounces is kept, not discarded for 100 g', asyn
   assert.ok(Math.abs((serving.gramWeight ?? 0) - 28.349523125) < 1e-9);
 });
 
-test('a serving stated in a volume unit keeps its label but claims no weight', async () => {
-  // A serving of "250 ml" cannot become grams without knowing what the product
-  // weighs per millilitre, and that is not something to invent.
+test('a serving stated only in millilitres is weighed at 1 g/ml, and keeps saying millilitres', async () => {
+  // This test asserted the opposite until 2 Sep: a volume serving carried no
+  // weight, because grams from millilitres needs a density and inventing one is
+  // the volumetric equivalent of reading a missing nutrient as zero.
+  //
+  // Charles overruled that for Open Food Facts specifically, and the reason is
+  // worth recording: refusing did not leave the user with nothing, it left them
+  // with a synthesized 100 g, which is not closer to the truth for any product
+  // at all. 1 g/ml is exact for water and within a few percent of every soft
+  // drink and juice — the things actually labelled in millilitres. A
+  // density-aware conversion is THI-339.
+  //
+  // The assumption stays visible: the label still reads "250 ml", so nothing on
+  // screen claims the manufacturer said 250 g.
   const provider = new OpenFoodFactsProvider({
     cache: new MemoryProviderCache(),
     clock: () => new Date(START),
@@ -126,8 +137,8 @@ test('a serving stated in a volume unit keeps its label but claims no weight', a
 
   const result = await provider.lookupBarcode('5449000000996');
   const serving = result.candidate?.portions.find((portion) => portion.label === '250 ml');
-  assert.ok(serving, 'the serving is still described');
-  assert.equal(serving.gramWeight, undefined);
+  assert.ok(serving, 'the serving is still described in the product\'s own words');
+  assert.equal(serving.gramWeight, 250);
 });
 
 test('stable refs generate reversible provider-scoped food IDs', () => {
