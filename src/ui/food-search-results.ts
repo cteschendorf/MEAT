@@ -37,7 +37,88 @@ export const TIER_TITLES: Readonly<Record<FoodResultTierId, string>> = {
   branded: 'Branded',
 };
 
+/**
+ * The order sections fall back to when nothing separates them on relevance.
+ *
+ * `yours` is PINNED here rather than ranked: a food you created and kept is a
+ * decision you already made about it, so when your own library answers the
+ * query at all it answers first. Common and Branded compete (Charles, 1 Sep).
+ */
 const TIER_ORDER: readonly FoodResultTierId[] = ['yours', 'common', 'branded'];
+const PINNED_TIER: FoodResultTierId = 'yours';
+
+/** Word characters only — punctuation in “Chicken breast, roasted” is not a word. */
+function words(text: string): readonly string[] {
+  return text.toLowerCase().match(/[a-z0-9]+/g) ?? [];
+}
+
+/**
+ * How well a name answers the query, 0–1.
+ *
+ * WHY THERE IS A SCORE AT ALL: providers rank internally and those ranks are
+ * not comparable — USDA’s FTS rank and Open Food Facts’ relevance are
+ * different scales measuring different corpora. Asking “which section holds
+ * the best answer” requires one yardstick, so this is it, computed locally
+ * from the query and the name and nothing else.
+ *
+ * THREE AXES, in strict priority:
+ *
+ *   1. COVERAGE. A result missing a query term is a worse answer than any
+ *      result containing all of them, however good its individual matches
+ *      are. The partial branch tops out below the full branch’s floor, so
+ *      that ordering can never invert.
+ *   2. QUALITY. A whole word equal to the term beats a word starting with it,
+ *      which beats a word merely containing it.
+ *   3. POSITION. “Chicken breast” answers “chicken” better than “Soup,
+ *      cream of chicken” does.
+ *
+ * WHAT IS DELIBERATELY NOT AN AXIS: name length. A first draft rewarded
+ * brevity, and on the single-term query “chicken” that made “Chicken strips”
+ * beat “Chicken breast, roasted” on nothing but word count — an arbitrary
+ * winner presented as a judgement. Where this function cannot tell two
+ * results apart it returns the same number, the sort is stable, and the
+ * provider’s own ordering survives. Ties are the honest outcome, not a
+ * failure to decide.
+ */
+export function matchScore(name: string, terms: readonly string[]): number {
+  const wanted = terms.map((term) => term.toLowerCase()).filter(Boolean);
+  if (!wanted.length) return 0;
+  const nameWords = words(name);
+  if (!nameWords.length) return 0;
+
+  // The name IS the query. Nothing can answer better than that.
+  if (nameWords.join(' ') === wanted.join(' ')) return 1;
+
+  let matched = 0;
+  let quality = 0;
+  let positions = 0;
+
+  for (const term of wanted) {
+    let best = 0;
+    let bestIndex = 0;
+    nameWords.forEach((word, index) => {
+      const value = word === term ? 1 : word.startsWith(term) ? 0.8 : word.includes(term) ? 0.4 : 0;
+      if (value > best) {
+        best = value;
+        bestIndex = index;
+      }
+    });
+    if (best > 0) {
+      matched += 1;
+      quality += best;
+      positions += bestIndex;
+    }
+  }
+  if (!matched) return 0;
+
+  const averageQuality = quality / matched;
+  const coverage = matched / wanted.length;
+  // Ceiling 0.4 here, floor 0.6 below: no partial match can outrank a full one.
+  if (coverage < 1) return 0.4 * coverage * averageQuality;
+
+  const position = 1 / (1 + positions / matched);
+  return 0.6 + 0.3 * averageQuality + 0.1 * position;
+}
 
 export type FoodResultMetric = CoreMetric;
 
@@ -122,15 +203,20 @@ function splitOnQuery(
   return segments.length ? segments : [{ text: name, matched: false }];
 }
 
+/** What the row prints, and therefore what the query is scored against. */
+function nameFor(candidate: FoodCandidate): string {
+  return candidate.food.brand
+    ? `${candidate.food.brand} ${candidate.food.name}`
+    : candidate.food.name;
+}
+
 function rowFor(
   candidate: FoodCandidate,
   terms: readonly string[],
   favorites: ReadonlySet<FoodId>,
 ): FoodResultRow {
   const portion = defaultPortionFor(candidate);
-  const name = candidate.food.brand
-    ? `${candidate.food.brand} ${candidate.food.name}`
-    : candidate.food.name;
+  const name = nameFor(candidate);
   return {
     key: candidate.food.id,
     candidate,
@@ -228,14 +314,47 @@ export function buildFoodResultTiers({
     }
   }
 
-  return TIER_ORDER.map((id) => {
+  const built = TIER_ORDER.map((id) => {
     const candidates = dedupeWithinFamily(byTier.get(id) ?? []);
+    // Scored once, here, so the row order and the section order are decided by
+    // the same number rather than by two rules that could disagree.
+    const scored = candidates
+      .map((candidate) => ({
+        candidate,
+        score: matchScore(nameFor(candidate), terms),
+      }))
+      // Stable: an equal score leaves the provider's own ordering untouched,
+      // which is the right answer when nothing here can tell two rows apart.
+      .sort((left, right) => right.score - left.score);
+
     return {
-      id,
-      title: TIER_TITLES[id],
-      rows: candidates.map((candidate) => rowFor(candidate, terms, favorites)),
-      notes: notes.get(id) ?? [],
-      loading: loading.has(id),
+      tier: {
+        id,
+        title: TIER_TITLES[id],
+        rows: scored.map(({ candidate }) => rowFor(candidate, terms, favorites)),
+        notes: notes.get(id) ?? [],
+        loading: loading.has(id),
+      },
+      best: scored[0]?.score ?? 0,
     };
-  }).filter((tier) => tier.rows.length > 0 || tier.notes.length > 0 || tier.loading);
+  }).filter(({ tier }) => tier.rows.length > 0 || tier.notes.length > 0 || tier.loading);
+
+  // SECTIONS ARE RANKED ONLY ONCE EVERY SOURCE HAS SETTLED.
+  //
+  // Results stream in per provider — `onGroup` fires as each one lands — so
+  // ranking eagerly would re-order the headings under the user's thumb two or
+  // three times per search. Holding the declared order until the last source
+  // reports costs one re-order at the end instead of one per provider.
+  //
+  // Rows inside a section are sorted immediately, because a row settling into
+  // place within its own heading is ordinary; a heading moving is not.
+  if (built.some(({ tier }) => tier.loading)) return built.map(({ tier }) => tier);
+
+  return [...built]
+    .sort((left, right) => {
+      const pinned =
+        Number(right.tier.id === PINNED_TIER) - Number(left.tier.id === PINNED_TIER);
+      return pinned !== 0 ? pinned : right.best - left.best;
+    })
+    .map(({ tier }) => tier);
 }
