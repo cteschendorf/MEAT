@@ -146,6 +146,25 @@ export interface FoodResultTier {
   readonly loading: boolean;
 }
 
+/**
+ * Whether a serving label already tells the user what it weighs.
+ *
+ * Packaged-food labels usually carry the weight themselves — "1 bar (40 g)",
+ * "2 cookies (25 g)" — so appending our own figure prints it twice. The
+ * tolerance is there because the two numbers come from different places: a
+ * manufacturer rounds "1 oz" to 28 g on the label while the exact conversion is
+ * 28.3, and those are the same weight said twice, not a disagreement worth
+ * showing (THI-338).
+ */
+function statesWeight(label: string, grams: number): boolean {
+  for (const match of label.toLowerCase().matchAll(/(\d+(?:[.,]\d+)?)\s*g\b/g)) {
+    const stated = Number(match[1]?.replace(',', '.'));
+    if (!Number.isFinite(stated)) continue;
+    if (Math.abs(stated - grams) <= Math.max(1, grams * 0.02)) return true;
+  }
+  return false;
+}
+
 /** The portion a row is added at when the user taps the add control. */
 export function defaultPortionFor(candidate: FoodCandidate): {
   servingId?: FoodServingId;
@@ -159,12 +178,10 @@ export function defaultPortionFor(candidate: FoodCandidate): {
   const grams = preferred.gramWeight ?? 100;
   const rounded = Math.round(grams * 10) / 10;
   const label = preferred.label.trim();
-  // A label that is already just a weight should not be repeated in parentheses.
-  const looksLikeWeight = /^[\d.]+\s*g$/i.test(label);
   return {
     servingId: preferred.id as FoodServingId,
     gramWeight: grams,
-    label: !label || looksLikeWeight ? `${rounded} g` : `${label} (${rounded} g)`,
+    label: !label || statesWeight(label, rounded) ? label || `${rounded} g` : `${label} (${rounded} g)`,
   };
 }
 
