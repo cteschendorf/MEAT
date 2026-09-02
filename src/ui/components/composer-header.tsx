@@ -1,6 +1,6 @@
 import { Pressable, ScrollView, Text, View } from 'react-native';
 
-import { presetMealNames } from '@/ui/composer/meal-context';
+import type { presetMealNames } from '@/ui/composer/meal-context';
 import type { RunningTotal } from '@/ui/composer/running-total';
 import { minimumTouchTarget, radii, spacing, typography } from '@/ui/theme/tokens';
 import { useThemeColors } from '@/ui/theme/use-theme';
@@ -8,21 +8,32 @@ import { useThemeColors } from '@/ui/theme/use-theme';
 export interface ComposerHeaderProps {
   readonly occurredAt: Date;
   readonly title: string;
-  /** The name this hour usually goes by, highlighted but never applied. */
+  /** The name this hour usually goes by, offered when none is chosen yet. */
   readonly suggestedMealName: (typeof presetMealNames)[number];
   readonly runningTotal: RunningTotal;
   readonly locked: boolean;
   readonly onClose: () => void;
-  readonly onOpenTimePicker: () => void;
-  readonly onChooseMealName: (name: string | null) => void;
+  /** Opens the details sheet: time, name, location, notes, photos. */
+  readonly onOpenDetails: () => void;
+  /** Accepts the suggested name in one tap. */
+  readonly onAcceptSuggestedName: () => void;
 }
 
 /**
- * The part of the sheet that never changes with the mode.
+ * One row of chips: close, when, how the day stands, what the meal is called.
  *
- * Close, when the meal happened, what it is called, and where the day stands —
- * visible from every tab, because all four are properties of the meal rather
- * than of the way a food was found (THI-328).
+ * It was three rows — a close-and-time row, a running-total row, and a row of
+ * meal-name chips — which put forty-odd points of chrome between the top of the
+ * screen and the tab row. The reference app does the same job in one row, and
+ * the reason it can is that each chip is a summary that opens something rather
+ * than the thing itself (THI-328).
+ *
+ * The meal-name chip carries the one interaction worth keeping on the surface.
+ * With no name chosen it shows the hour's suggestion OUTLINED, and a tap
+ * accepts it — an outline is a proposal, a fill is a decision, and the clock
+ * is not entitled to make the decision for someone eating dinner at 3am. Once
+ * a name is chosen the chip is filled and a tap opens the details sheet to
+ * change it.
  *
  * The running total in particular has to be here rather than in the scroll: it
  * answers "does this fit", and it used to leave the screen at exactly the
@@ -35,10 +46,11 @@ export function ComposerHeader({
   runningTotal,
   locked,
   onClose,
-  onOpenTimePicker,
-  onChooseMealName,
+  onOpenDetails,
+  onAcceptSuggestedName,
 }: ComposerHeaderProps) {
   const colors = useThemeColors();
+  const time = occurredAt.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
 
   return (
     <View
@@ -46,15 +58,18 @@ export function ComposerHeader({
         backgroundColor: colors.surface,
         borderBottomColor: colors.border,
         borderBottomWidth: 1,
-        paddingTop: spacing.xs,
       }}
     >
-      <View
-        style={{
-          flexDirection: 'row',
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+        contentContainerStyle={{
+          flexGrow: 1,
           alignItems: 'center',
           gap: spacing.xs,
           paddingHorizontal: spacing.xs,
+          paddingVertical: spacing.xs,
         }}
       >
         <Pressable
@@ -74,76 +89,43 @@ export function ComposerHeader({
           </Text>
         </Pressable>
 
-        <Pressable
-          accessibilityRole="button"
+        <Chip
+          label={time}
           accessibilityLabel={`Meal time, ${occurredAt.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })}`}
-          accessibilityHint="Opens meal details: time, name, location, notes and photos."
+          accessibilityHint="Opens meal details."
           disabled={locked}
-          onPress={onOpenTimePicker}
-          style={(state) => ({
-            flex: 1,
-            minHeight: minimumTouchTarget,
-            justifyContent: 'center',
-            opacity: state.pressed ? 0.6 : 1,
-          })}
-        >
-          <Text allowFontScaling numberOfLines={1} style={[typography.bodyStrong, { color: colors.textPrimary }]}>
-            {occurredAt.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })}
-          </Text>
-        </Pressable>
-      </View>
-
-      {/* The day's standing, pinned. Protein leads: this is a protein-first
-          tracker, and the reference app's calorie-first chip answers a
-          different question (THI-307). */}
-      <View
-        accessible
-        accessibilityLabel={runningTotal.accessibilityLabel}
-        style={{
-          flexDirection: 'row',
-          alignItems: 'center',
-          flexWrap: 'wrap',
-          gap: spacing.xs,
-          paddingHorizontal: spacing.md,
-          paddingBottom: spacing.xs,
-        }}
-      >
-        <Text allowFontScaling style={[typography.bodyStrong, { color: colors.protein }]}>
-          {runningTotal.headline}
-        </Text>
-        <Text allowFontScaling style={[typography.caption, { color: colors.textSecondary, flex: 1 }]}>
-          {runningTotal.detail}
-        </Text>
-      </View>
-
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={{
-          gap: spacing.xxs,
-          paddingHorizontal: spacing.xs,
-          paddingBottom: spacing.xs,
-        }}
-      >
-        <MealNameChip
-          label="None"
-          selected={!title}
-          suggested={false}
-          disabled={locked}
-          onPress={() => onChooseMealName(null)}
+          onPress={onOpenDetails}
         />
-        {presetMealNames.map((name) => (
-          <MealNameChip
-            key={name}
-            label={name}
-            selected={title === name}
-            // Highlighted, not chosen. The clock is not entitled to claim what
-            // a meal was: someone eating dinner at 3am has not had a snack.
-            suggested={!title && name === suggestedMealName}
+
+        {/* Protein leads: this is a protein-first tracker, and the reference
+            app's calorie-first chip answers a different question. */}
+        <Chip
+          label={runningTotal.headline}
+          accessibilityLabel={runningTotal.accessibilityLabel}
+          accent
+          disabled={locked}
+          onPress={onOpenDetails}
+        />
+
+        {title ? (
+          <Chip
+            label={title}
+            accessibilityLabel={`Meal name, ${title}`}
+            accessibilityHint="Opens meal details to change it."
+            filled
             disabled={locked}
-            onPress={() => onChooseMealName(name)}
+            onPress={onOpenDetails}
           />
-        ))}
+        ) : (
+          <Chip
+            label={suggestedMealName}
+            accessibilityLabel={`${suggestedMealName}, suggested for this time of day`}
+            accessibilityHint="Names the meal. Open meal details to pick a different name."
+            proposed
+            disabled={locked}
+            onPress={onAcceptSuggestedName}
+          />
+        )}
       </ScrollView>
     </View>
   );
@@ -151,38 +133,61 @@ export function ComposerHeader({
 
 interface ChipProps {
   readonly label: string;
-  readonly selected: boolean;
-  readonly suggested: boolean;
+  readonly accessibilityLabel: string;
+  readonly accessibilityHint?: string;
+  /** Brand-tinted text, for the one number the app is about. */
+  readonly accent?: boolean;
+  /** Solid: a choice already made. */
+  readonly filled?: boolean;
+  /** Outlined in brand: a suggestion a tap would accept. */
+  readonly proposed?: boolean;
   readonly disabled: boolean;
   readonly onPress: () => void;
 }
 
-function MealNameChip({ label, selected, suggested, disabled, onPress }: ChipProps) {
+function Chip({
+  label,
+  accessibilityLabel,
+  accessibilityHint,
+  accent = false,
+  filled = false,
+  proposed = false,
+  disabled,
+  onPress,
+}: ChipProps) {
   const colors = useThemeColors();
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityState={{ selected, disabled }}
-      accessibilityLabel={suggested ? `${label}, suggested for this time of day` : label}
+      accessibilityLabel={accessibilityLabel}
+      {...(accessibilityHint ? { accessibilityHint } : {})}
+      accessibilityState={{ disabled, selected: filled }}
       disabled={disabled}
       onPress={onPress}
       style={(state) => ({
         alignItems: 'center',
         justifyContent: 'center',
-        minHeight: minimumTouchTarget,
+        minHeight: minimumTouchTarget - spacing.xs,
         paddingHorizontal: spacing.sm,
         borderRadius: radii.capsule,
         borderWidth: 1,
-        borderColor: selected || suggested ? colors.brand : colors.border,
-        backgroundColor: selected ? colors.brand : 'transparent',
+        borderColor: filled || proposed ? colors.brand : colors.border,
+        backgroundColor: filled ? colors.brand : colors.surfaceMuted,
         opacity: disabled ? 0.45 : state.pressed ? 0.7 : 1,
       })}
     >
       <Text
         allowFontScaling
+        numberOfLines={1}
         style={[
-          selected ? typography.bodyStrong : typography.body,
-          { color: selected ? colors.textOnAction : colors.textPrimary },
+          filled || accent ? typography.bodyStrong : typography.body,
+          {
+            color: filled
+              ? colors.textOnAction
+              : accent
+                ? colors.protein
+                : colors.textPrimary,
+          },
         ]}
       >
         {label}
