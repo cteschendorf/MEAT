@@ -40,7 +40,11 @@ describe('unified search result row', () => {
     const view = await render(
       <FoodResultRowItem row={row} onAdd={() => undefined} onRefine={() => undefined} />,
     );
-    expect(view.getByText('1 medium breast (140 g) · USDA')).toBeTruthy();
+    // The portion and the source now share the metrics line rather than having
+    // one of their own (THI-313's row anatomy), so this asserts the two facts
+    // are there rather than the exact string that once held them.
+    expect(view.getByText(/1 medium breast \(140 g\)/)).toBeTruthy();
+    expect(view.getByText(/USDA/)).toBeTruthy();
   });
 
   it('adds at the default portion without a detour through the editor', async () => {

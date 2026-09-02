@@ -46,7 +46,7 @@ function FoodResultRowView({ row, disabled = false, onAdd, onRefine }: FoodResul
         accessibilityHint="Opens portion options for this food."
         disabled={disabled}
         onPress={() => onRefine(row)}
-        style={{ flex: 1, gap: 3, opacity: disabled ? 0.45 : 1 }}
+        style={{ flex: 1, gap: 2, opacity: disabled ? 0.45 : 1 }}
       >
         <Text allowFontScaling style={[typography.body, { color: colors.textPrimary }]}>
           {row.nameSegments.map((segment, index) => (
@@ -60,27 +60,30 @@ function FoodResultRowView({ row, disabled = false, onAdd, onRefine }: FoodResul
           ))}
         </Text>
 
-        <View style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: spacing.xs }}>
-          {row.metrics.map((metric) => (
-            <Text
-              key={metric.code}
-              allowFontScaling
-              style={[
-                typography.caption,
-                {
-                  color:
-                    metric.code === 'protein-g' && metric.known ? colors.brand : colors.textSecondary,
-                  fontWeight: metric.code === 'protein-g' && metric.known ? '600' : '400',
-                },
-              ]}
-            >
-              {metric.text} {metric.label}
+        {/* One line, wrapping: metrics, then the portion they describe, then
+            where the record came from. Protein is the only accented value.
+            This is the THI-313 anatomy — the metrics and the portion belong
+            together because the numbers mean nothing without the weight they
+            are for, and the source is a quiet tag rather than a section. */}
+        <Text allowFontScaling style={[typography.caption, { color: colors.textSecondary }]}>
+          {row.metrics.map((metric, index) => (
+            <Text key={metric.code}>
+              {index > 0 ? ' · ' : ''}
+              <Text
+                style={
+                  metric.code === 'protein-g' && metric.known
+                    ? { color: colors.brand, fontWeight: '600' }
+                    : undefined
+                }
+              >
+                {metric.text} {metric.label}
+              </Text>
             </Text>
           ))}
-        </View>
-
-        <Text allowFontScaling style={[typography.caption, { color: colors.textSecondary }]}>
-          {row.portionLabel} · {row.sourceLabel}
+          {'  —  '}
+          {row.portionLabel}
+          {' · '}
+          <Text style={{ color: colors.textSecondary, opacity: 0.8 }}>{row.sourceLabel}</Text>
         </Text>
       </Pressable>
 
