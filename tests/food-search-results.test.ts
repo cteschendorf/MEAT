@@ -6,6 +6,7 @@ import type { FoodId, FoodServingId, ISODateTime, SourceRecordId } from '../src/
 import {
   buildFoodResultTiers,
   defaultPortionFor,
+  matchScore,
   metricsForPortion,
 } from '../src/ui/food-search-results';
 
@@ -190,4 +191,149 @@ test('an empty source is silent, but an unreachable one explains itself once', (
 
   assert.equal(tiers.length, 1, 'the empty source produces no section at all');
   assert.deepEqual(tiers[0]?.notes, ['Open Food Facts is unavailable right now.']);
+});
+
+// ── Section ranking (1 Sep) ──
+//
+// Charles: "if the usda branded foods or open foods has the result with the
+// highest or best match, can those results appear first? I'm not asking to mix
+// results in together."
+//
+// So the SECTIONS are ranked and the rows stay inside them. `Your foods` is
+// pinned above that contest: a food you created and kept is a decision you
+// already made, and demoting your own library under a packaged good would be
+// answering a question you did not ask.
+
+function loadingGroup(sourceId: FoodCandidate['ref']['sourceId']): FoodSearchGroup {
+  return { sourceId, query: 'red bull', state: 'loading' };
+}
+
+const redBull = food('open-food-facts:rb', 'Red Bull Sugar Free Energy Drink', {
+  'protein-g': 0, 'energy-kcal': 13,
+});
+// Matches "red" and not "bull" — a real USDA generic, and the wrong answer.
+const generic = food('usda-core:rb', 'Energy drink, red, canned', { 'protein-g': 0 });
+
+test('the section holding the best match leads, and Branded is allowed to win', () => {
+  const tiers = buildFoodResultTiers({
+    query: 'red bull',
+    groups: [
+      ready('usda-core', [candidate('usda-core', 'rb', generic)]),
+      ready('open-food-facts', [candidate('open-food-facts', 'rb', redBull)]),
+    ],
+  });
+
+  assert.deepEqual(tiers.map((tier) => tier.id), ['branded', 'common'],
+    'the exact product should not sit under a generic that matched half the query');
+});
+
+test('the rows themselves never leave their section', () => {
+  const tiers = buildFoodResultTiers({
+    query: 'red bull',
+    groups: [
+      ready('usda-core', [candidate('usda-core', 'rb', generic)]),
+      ready('open-food-facts', [candidate('open-food-facts', 'rb', redBull)]),
+    ],
+  });
+
+  // Ranking reorders headings. It must never interleave what is under them.
+  for (const tier of tiers) {
+    const sources = new Set(tier.rows.map((row) => row.sourceLabel));
+    assert.equal(sources.size, 1, `${tier.id} mixed sources together`);
+  }
+  assert.equal(tiers.find((tier) => tier.id === 'branded')?.rows[0]?.sourceLabel, 'Open Food Facts');
+  assert.equal(tiers.find((tier) => tier.id === 'common')?.rows[0]?.sourceLabel, 'USDA');
+});
+
+test('Your foods is pinned, even when something else matches better', () => {
+  // A deliberately poor match in the user's own library, against a perfect one
+  // in Branded. Pinning is the whole decision: they saved this on purpose.
+  const mine = food('personal:1', 'Red pepper hummus', { 'protein-g': 8 });
+  const tiers = buildFoodResultTiers({
+    query: 'red bull',
+    groups: [
+      ready('personal', [candidate('personal', 'p1', mine)]),
+      ready('open-food-facts', [candidate('open-food-facts', 'rb', redBull)]),
+      ready('usda-core', [candidate('usda-core', 'rb', generic)]),
+    ],
+  });
+
+  assert.equal(tiers[0]?.id, 'yours');
+  assert.deepEqual(tiers.map((tier) => tier.id), ['yours', 'branded', 'common']);
+});
+
+test('a section that answers the whole query beats one that answers part of it brilliantly', () => {
+  // "bull" alone, at the very front of the name, as good a single match as
+  // exists — and still the wrong answer, because half the query is missing.
+  const partial = food('usda-core:b', 'Bull, ground, raw', { 'protein-g': 26 });
+  const tiers = buildFoodResultTiers({
+    query: 'red bull',
+    groups: [
+      ready('usda-core', [candidate('usda-core', 'b', partial)]),
+      ready('open-food-facts', [candidate('open-food-facts', 'rb', redBull)]),
+    ],
+  });
+  assert.deepEqual(tiers.map((tier) => tier.id), ['branded', 'common']);
+});
+
+test('nothing to choose between them leaves the curated order alone', () => {
+  // Both name the term once, at the front, as a whole word. This function
+  // cannot honestly prefer one, so it does not: the declared order survives
+  // and so does each provider's own ranking inside it.
+  const tiers = buildFoodResultTiers({
+    query: 'chicken',
+    groups: [
+      ready('usda-core', [candidate('usda-core', '1', breast)]),
+      ready('open-food-facts', [
+        candidate('open-food-facts', '3', food('open-food-facts:3', 'Chicken strips', { 'protein-g': 22 })),
+      ]),
+    ],
+  });
+  assert.deepEqual(tiers.map((tier) => tier.id), ['common', 'branded']);
+});
+
+test('rows inside a section are ordered by the same score the sections are', () => {
+  const tiers = buildFoodResultTiers({
+    query: 'red bull',
+    groups: [
+      ready('open-food-facts', [
+        // Handed over in the wrong order on purpose.
+        candidate('open-food-facts', 'x', food('open-food-facts:x', 'Red velvet cake', { 'protein-g': 4 })),
+        candidate('open-food-facts', 'rb', redBull),
+      ]),
+    ],
+  });
+  const names = tiers[0]?.rows.map((row) => row.name) ?? [];
+  assert.equal(names[0], 'Red Bull Sugar Free Energy Drink');
+});
+
+test('headings hold still while sources are still reporting', () => {
+  // Results stream in one provider at a time. Re-ranking eagerly would move
+  // the headings under the user's thumb once per source; holding the declared
+  // order until the last one lands costs a single re-order at the end.
+  const tiers = buildFoodResultTiers({
+    query: 'red bull',
+    groups: [
+      ready('open-food-facts', [candidate('open-food-facts', 'rb', redBull)]),
+      loadingGroup('usda-core'),
+    ],
+  });
+  assert.deepEqual(tiers.map((tier) => tier.id), ['common', 'branded'],
+    'Branded has the better match, but Common has not finished answering yet');
+});
+
+test('the score is a yardstick, not a ranking of the providers', () => {
+  assert.equal(matchScore('Chicken', ['chicken']), 1, 'the name IS the query');
+  // Whole word beats prefix beats substring.
+  assert.ok(matchScore('Chicken breast', ['chicken']) > matchScore('Chickens breast', ['chicken']));
+  assert.ok(matchScore('Chickens breast', ['chicken']) > matchScore('Unchickened broth', ['chicken']));
+  // Earlier is better.
+  assert.ok(matchScore('Chicken soup', ['chicken']) > matchScore('Soup, cream of chicken', ['chicken']));
+  // Coverage dominates: every full match outranks every partial one.
+  assert.ok(matchScore('Red bull anything at all here', ['red', 'bull']) >
+            matchScore('Red', ['red', 'bull']));
+  // No query, no opinion — which is what keeps the provider order intact.
+  assert.equal(matchScore('Chicken breast', []), 0);
+  assert.equal(matchScore('', ['chicken']), 0);
+  assert.equal(matchScore('Beef mince', ['chicken']), 0);
 });
