@@ -1,20 +1,32 @@
-import { Image } from 'expo-image';
+import { SymbolView, type AndroidSymbol, type SFSymbol } from 'expo-symbols';
 import type { ColorValue } from 'react-native';
 
 export interface TabBarSymbolProps {
   readonly color: ColorValue;
   readonly focused: boolean;
-  readonly name: string;
-  readonly selectedName: string;
+  readonly name: SFSymbol;
+  readonly selectedName: SFSymbol;
+  readonly androidName: AndroidSymbol;
+  readonly androidSelectedName?: AndroidSymbol;
 }
 
-export function TabBarSymbol({ color, focused, name, selectedName }: TabBarSymbolProps) {
+export function TabBarSymbol({
+  androidName,
+  androidSelectedName = androidName,
+  color,
+  focused,
+  name,
+  selectedName,
+}: TabBarSymbolProps) {
+  const iosName = focused ? selectedName : name;
+  const materialName = focused ? androidSelectedName : androidName;
+
   return (
-    <Image
-      accessibilityIgnoresInvertColors
-      contentFit="contain"
-      source={`sf:${focused ? selectedName : name}`}
-      style={{ height: 24, tintColor: color, width: 24 }}
+    <SymbolView
+      accessible={false}
+      name={{ android: materialName, ios: iosName, web: materialName }}
+      size={18}
+      tintColor={color}
     />
   );
 }

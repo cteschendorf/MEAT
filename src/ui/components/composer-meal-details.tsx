@@ -298,9 +298,13 @@ function NameChip({ label, selected, suggested, disabled, onPress }: NameChipPro
         paddingHorizontal: spacing.sm,
         borderRadius: radii.capsule,
         borderWidth: 1,
-        borderColor: selected || suggested ? colors.brand : colors.border,
-        backgroundColor: selected ? colors.brand : 'transparent',
-        opacity: disabled ? 0.45 : state.pressed ? 0.7 : 1,
+        borderColor: selected ? colors.action : suggested ? colors.brand : colors.border,
+        backgroundColor: selected
+          ? state.pressed
+            ? colors.actionPressed
+            : colors.action
+          : 'transparent',
+        opacity: disabled ? 0.45 : selected ? 1 : state.pressed ? 0.7 : 1,
       })}
     >
       <Text

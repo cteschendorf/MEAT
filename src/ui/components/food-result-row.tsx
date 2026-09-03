@@ -2,7 +2,7 @@ import { memo } from 'react';
 import { Pressable, Text, View } from 'react-native';
 
 import type { FoodResultRow } from '@/ui/food-search-results';
-import { minimumTouchTarget, radii, spacing, typography } from '@/ui/theme/tokens';
+import { fontFamilies, minimumTouchTarget, radii, spacing, typography } from '@/ui/theme/tokens';
 import { useThemeColors } from '@/ui/theme/use-theme';
 
 export interface FoodResultRowProps {
@@ -72,7 +72,7 @@ function FoodResultRowView({ row, disabled = false, onAdd, onRefine }: FoodResul
               <Text
                 style={
                   metric.code === 'protein-g' && metric.known
-                    ? { color: colors.brand, fontWeight: '600' }
+                    ? { color: colors.brand, fontFamily: fontFamilies.bodySemibold }
                     : undefined
                 }
               >
@@ -83,7 +83,7 @@ function FoodResultRowView({ row, disabled = false, onAdd, onRefine }: FoodResul
           {'  —  '}
           {row.portionLabel}
           {' · '}
-          <Text style={{ color: colors.textSecondary, opacity: 0.8 }}>{row.sourceLabel}</Text>
+          <Text style={{ color: colors.textSecondary }}>{row.sourceLabel}</Text>
         </Text>
       </Pressable>
 

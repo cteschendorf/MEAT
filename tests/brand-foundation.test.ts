@@ -105,34 +105,68 @@ function contrast(foreground: string, background: string): number {
   return ((lighter ?? 0) + 0.05) / ((darker ?? 0) + 0.05);
 }
 
-test('metric roles match the approved protein-first palette', () => {
-  assert.equal(lightColors.action, brandColors.primaryPlum);
-  assert.equal(lightColors.protein, '#4B2438');
-  assert.equal(lightColors.proteinAccent, '#F12A2F');
-  assert.equal(lightColors.calories, '#FF5A1F');
-  assert.equal(lightColors.caloriesAccent, '#FFB000');
-  assert.equal(lightColors.carbs, '#F2B400');
-  assert.equal(lightColors.fat, '#2457D6');
-  assert.equal(lightColors.fiber, '#00A66A');
+test('brand roles match the approved Version 4 TWA palette', () => {
+  assert.deepEqual(
+    {
+      card: brandColors.cardDark,
+      darkBackground: brandColors.travertineDark,
+      darkSurface: brandColors.chrome,
+      darkText: brandColors.warmText,
+      onParchment: brandColors.ink,
+      onParchmentMuted: brandColors.inkSecondary,
+      parchment: brandColors.parchment,
+      parchmentBorder: brandColors.parchmentBorder,
+      parchmentMuted: brandColors.parchmentMuted,
+      twaRed: brandColors.twaRed,
+      warmBorder: brandColors.warmBorder,
+    },
+    {
+      card: '#201C13',
+      darkBackground: '#100D08',
+      darkSurface: '#181410',
+      darkText: '#E8DFC8',
+      onParchment: '#1A1510',
+      onParchmentMuted: '#5A4E3A',
+      parchment: '#F0E8D5',
+      parchmentBorder: '#C8BDA8',
+      parchmentMuted: '#E2D9C4',
+      twaRed: '#C8201A',
+      warmBorder: '#2E2618',
+    },
+  );
+
+  for (const colors of [lightColors, darkColors]) {
+    assert.equal(colors.action, brandColors.twaRed);
+    assert.equal(colors.accentOnChrome, '#E85A50');
+    assert.equal(colors.chrome, brandColors.chrome);
+    assert.equal(colors.macroStrip, brandColors.cardDark);
+    assert.equal(colors.textOnChrome, brandColors.warmText);
+    assert.equal(colors.parchment, brandColors.parchment);
+    assert.equal(colors.parchmentMuted, brandColors.parchmentMuted);
+    assert.equal(colors.parchmentBorder, brandColors.parchmentBorder);
+    assert.equal(colors.textOnParchment, brandColors.ink);
+    assert.equal(colors.textSecondaryOnParchment, brandColors.inkSecondary);
+  }
+
+  assert.equal(darkColors.background, brandColors.travertineDark);
+  assert.equal(darkColors.surface, brandColors.cardDark);
+  assert.equal(darkColors.border, brandColors.warmBorder);
+  assert.equal(lightColors.protein, brandColors.twaRed);
 });
 
-test('metric label colors retain WCAG AA contrast on neutral cards', () => {
-  for (const label of [
-    lightColors.caloriesLabel,
-    lightColors.carbsLabel,
-    lightColors.fatLabel,
-    lightColors.fiberLabel,
-  ]) {
-    assert.ok(contrast(label, lightColors.surface) >= 4.5);
+test('compound-card text retains WCAG AA contrast on parchment and dark chrome', () => {
+  for (const colors of [lightColors, darkColors]) {
+    assert.ok(contrast(colors.textOnParchment, colors.parchment) >= 4.5);
+    assert.ok(contrast(colors.textSecondaryOnParchment, colors.parchment) >= 4.5);
+    assert.ok(contrast(colors.textOnChrome, colors.chrome) >= 4.5);
+    assert.ok(contrast(colors.textSecondaryOnChrome, colors.chrome) >= 4.5);
+    assert.ok(contrast(colors.accentOnChrome, colors.chrome) >= 4.5);
+    assert.ok(contrast(colors.textOnAction, colors.destructiveAction) >= 4.5);
+    assert.ok(contrast(colors.textOnAction, colors.destructiveActionPressed) >= 4.5);
+    assert.ok(contrast(colors.energyProgressOnParchment, colors.parchmentMuted) >= 3);
+    assert.ok(contrast(colors.energyProgressOverOnParchment, colors.parchmentMuted) >= 3);
   }
-  for (const label of [
-    darkColors.caloriesLabel,
-    darkColors.carbsLabel,
-    darkColors.fatLabel,
-    darkColors.fiberLabel,
-  ]) {
-    assert.ok(contrast(label, darkColors.surface) >= 4.5);
-  }
+  assert.ok(contrast(brandColors.twaRed, brandColors.parchment) >= 4.5);
 });
 
 test('production icon exports are square, opaque 1024px RGB files', () => {

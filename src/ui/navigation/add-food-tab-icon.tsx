@@ -1,4 +1,4 @@
-import { Image } from 'expo-image';
+import { SymbolView } from 'expo-symbols';
 import { View } from 'react-native';
 
 import { radii } from '@/ui/theme/tokens';
@@ -27,19 +27,15 @@ export function AddFoodTabIcon() {
         justifyContent: 'center',
         // Lifted above the bar's baseline so it reads as a button on the bar
         // rather than an icon in it.
-        marginTop: -18,
-        shadowColor: colors.shadow,
-        shadowOpacity: 0.25,
-        shadowRadius: 8,
-        shadowOffset: { width: 0, height: 3 },
-        elevation: 6,
+        marginTop: -16,
+        boxShadow: `0 6px 18px ${colors.shadow}`,
       }}
     >
-      <Image
-        accessibilityIgnoresInvertColors
-        contentFit="contain"
-        source="sf:plus"
-        style={{ width: 26, height: 26, tintColor: colors.textOnAction }}
+      <SymbolView
+        accessible={false}
+        name={{ android: 'add', ios: 'plus', web: 'add' }}
+        size={20}
+        tintColor={colors.textOnAction}
       />
     </View>
   );

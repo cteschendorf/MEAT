@@ -1,6 +1,7 @@
 import { useFocusEffect, useRouter } from 'expo-router';
+import { SymbolView } from 'expo-symbols';
 import { useCallback, useRef, useState } from 'react';
-import { Pressable, ScrollView, Text, View } from 'react-native';
+import { Pressable, ScrollView, Text, useWindowDimensions, View } from 'react-native';
 
 import type { ISODateTime } from '@/domain/shared/ids';
 import {
@@ -15,6 +16,7 @@ import {
   ActionButton,
   MealTimeline,
   NutritionDashboard,
+  radii,
   ScreenState,
   Surface,
   minimumTouchTarget,
@@ -33,8 +35,16 @@ function calendarDayLabel(date: Date, isToday: boolean): string {
   });
 }
 
+function mealSectionLabel(date: Date, isToday: boolean, mealCount: number): string {
+  const day = isToday
+    ? 'Today'
+    : date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+  return `${day} · ${mealCount} ${mealCount === 1 ? 'meal' : 'meals'}`;
+}
+
 export function TodayScreen() {
   const colors = useThemeColors();
+  const { fontScale, width } = useWindowDimensions();
   const router = useRouter();
   const [date, setDate] = useState(() => new Date());
   const [snapshot, setSnapshot] = useState<TodaySnapshot | null>(null);
@@ -114,70 +124,135 @@ export function TodayScreen() {
 
   const isToday = new Date().toDateString() === date.toDateString();
   const dateLabel = calendarDayLabel(date, isToday);
+  const stackHeader = fontScale >= 1.35 || width < 360;
 
   return (
     <ScrollView
       contentInsetAdjustmentBehavior="automatic"
       contentContainerStyle={{
         backgroundColor: colors.background,
-        gap: spacing.lg,
+        gap: spacing.md,
         padding: spacing.md,
-        paddingBottom: spacing.xxl,
+        paddingBottom: spacing.xxl + spacing.lg,
       }}
       style={{ backgroundColor: colors.background }}
     >
-      <View style={{ gap: spacing.xs }}>
-        <View style={{ alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between' }}>
-          <Pressable
-            accessibilityLabel="Previous day"
-            accessibilityRole="button"
-            hitSlop={8}
-            onPress={() => moveDay(-1)}
-            style={({ pressed }) => ({
-              alignItems: 'center',
-              justifyContent: 'center',
-              minHeight: minimumTouchTarget,
-              minWidth: minimumTouchTarget,
-              opacity: pressed ? 0.6 : 1,
-            })}
+      <View style={{ gap: spacing.sm }}>
+        <Text allowFontScaling selectable style={[typography.overline, { color: colors.textSecondary }]}>
+          {dateLabel}
+        </Text>
+        <View
+          style={{
+            alignItems: stackHeader ? 'stretch' : 'center',
+            flexDirection: stackHeader ? 'column' : 'row',
+            gap: spacing.sm,
+            justifyContent: 'space-between',
+          }}
+        >
+          <Text
+            accessibilityRole="header"
+            allowFontScaling
+            selectable
+            style={[typography.screenTitle, { color: colors.textPrimary, textTransform: 'uppercase' }]}
           >
-            <Text allowFontScaling style={[typography.title1, { color: colors.action }]}>‹</Text>
-          </Pressable>
-
-          <View style={{ alignItems: 'center', flex: 1, gap: spacing.xxs }}>
-            <Text accessibilityRole="header" allowFontScaling selectable style={[typography.largeTitle, { color: colors.textPrimary }]}>Today</Text>
-            <Text allowFontScaling selectable style={[typography.caption, { color: colors.textSecondary }]}>
-              {dateLabel}
-            </Text>
+            Today
+          </Text>
+          <View style={{ alignSelf: stackHeader ? 'flex-end' : 'auto', flexDirection: 'row' }}>
+            <Pressable
+              accessibilityLabel="Previous day"
+              accessibilityRole="button"
+              hitSlop={8}
+              onPress={() => moveDay(-1)}
+              style={({ pressed }) => ({
+                alignItems: 'center',
+                justifyContent: 'center',
+                minHeight: minimumTouchTarget,
+                minWidth: minimumTouchTarget,
+                opacity: pressed ? 0.6 : 1,
+              })}
+            >
+              <SymbolView
+                accessible={false}
+                name={{ android: 'chevron_left', ios: 'chevron.left', web: 'chevron_left' }}
+                size={16}
+                tintColor={colors.action}
+              />
+            </Pressable>
+            <Pressable
+              accessibilityLabel="Next day"
+              accessibilityRole="button"
+              accessibilityState={{ disabled: isToday }}
+              disabled={isToday}
+              hitSlop={8}
+              onPress={() => moveDay(1)}
+              style={({ pressed }) => ({
+                alignItems: 'center',
+                justifyContent: 'center',
+                minHeight: minimumTouchTarget,
+                minWidth: minimumTouchTarget,
+                opacity: isToday ? 0.25 : pressed ? 0.6 : 1,
+              })}
+            >
+              <SymbolView
+                accessible={false}
+                name={{ android: 'chevron_right', ios: 'chevron.right', web: 'chevron_right' }}
+                size={16}
+                tintColor={colors.action}
+              />
+            </Pressable>
           </View>
-
-          <Pressable
-            accessibilityLabel="Next day"
-            accessibilityRole="button"
-            accessibilityState={{ disabled: isToday }}
-            disabled={isToday}
-            hitSlop={8}
-            onPress={() => moveDay(1)}
-            style={({ pressed }) => ({
-              alignItems: 'center',
-              justifyContent: 'center',
-              minHeight: minimumTouchTarget,
-              minWidth: minimumTouchTarget,
-              opacity: isToday ? 0.25 : pressed ? 0.6 : 1,
-            })}
-          >
-            <Text allowFontScaling style={[typography.title1, { color: colors.action }]}>›</Text>
-          </Pressable>
         </View>
 
-        {isToday ? (
-          <ActionButton label="Log food" onPress={() => router.push('/log-food')} />
-        ) : (
-          <View style={{ gap: spacing.xs }}>
-            <ActionButton label="Log food for this day" onPress={openComposerForSelectedDay} />
-            <ActionButton label="Return to today" onPress={returnToToday} tone="secondary" />
+        <Pressable
+          accessibilityHint="Opens the food logger"
+          accessibilityLabel={isToday ? 'Log food' : `Log food for ${dateLabel}`}
+          accessibilityRole="button"
+          onPress={openComposerForSelectedDay}
+          style={({ pressed }) => ({
+            alignItems: 'center',
+            backgroundColor: colors.surface,
+            borderColor: colors.borderStrong,
+            borderCurve: 'continuous',
+            borderRadius: radii.control,
+            borderWidth: 1,
+            flexDirection: 'row',
+            gap: spacing.sm,
+            minHeight: minimumTouchTarget,
+            opacity: pressed ? 0.72 : 1,
+            paddingHorizontal: spacing.md,
+            paddingVertical: 13,
+          })}
+        >
+          <SymbolView
+            accessible={false}
+            name={{ android: 'search', ios: 'magnifyingglass', web: 'search' }}
+            size={15}
+            tintColor={colors.textSecondary}
+          />
+          <Text allowFontScaling style={[typography.body, { color: colors.textSecondary, flex: 1 }]}>
+            What did you eat?
+          </Text>
+          <View
+            accessibilityElementsHidden
+            importantForAccessibility="no-hide-descendants"
+            style={{ flexDirection: 'row', gap: spacing.sm }}
+          >
+            <SymbolView
+              accessible={false}
+              name={{ android: 'photo_camera', ios: 'camera', web: 'photo_camera' }}
+              size={16}
+              tintColor={colors.textSecondary}
+            />
+            <SymbolView
+              accessible={false}
+              name={{ android: 'mic', ios: 'mic', web: 'mic' }}
+              size={16}
+              tintColor={colors.textSecondary}
+            />
           </View>
-        )}
+        </Pressable>
+
+        {!isToday ? <ActionButton label="Return to today" onPress={returnToToday} tone="secondary" /> : null}
       </View>
 
       {error ? (
@@ -207,11 +282,15 @@ export function TodayScreen() {
 
           <NutritionDashboard metrics={snapshot.metrics} />
 
-          <View style={{ gap: spacing.md }}>
-            <View style={{ gap: spacing.xxs }}>
-              <Text accessibilityRole="header" allowFontScaling selectable style={[typography.title2, { color: colors.textPrimary }]}>Timeline</Text>
-              <Text allowFontScaling selectable style={[typography.body, { color: colors.textSecondary }]}>Your meals, in the order they happened.</Text>
-            </View>
+          <View style={{ gap: spacing.xs }}>
+            <Text
+              accessibilityRole="header"
+              allowFontScaling
+              selectable
+              style={[typography.overline, { color: colors.textSecondary }]}
+            >
+              · {mealSectionLabel(date, isToday, timelineEntries.length)}
+            </Text>
 
             {timelineEntries.length === 0 ? (
               <Surface>

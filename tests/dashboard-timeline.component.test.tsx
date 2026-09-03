@@ -31,23 +31,25 @@ function timelineEntry(id: string, hour: number, title?: string): MealTimelineEn
 }
 
 describe('branded nutrition dashboard', () => {
-  it('renders the protein-first hierarchy with accessible metric values', async () => {
+  it('renders the compound energy and macro hierarchy with accessible metric values', async () => {
     const dashboard = await render(createElement(NutritionDashboard, { metrics }));
 
+    expect(dashboard.getByLabelText('Daily nutrition')).toBeTruthy();
     expect(dashboard.getByLabelText('Protein, 126 g. No goal set')).toBeTruthy();
     expect(dashboard.getByLabelText('Calories, 1850 kcal. No goal set')).toBeTruthy();
     expect(dashboard.getByLabelText('Carbs, 210 g. No goal set')).toBeTruthy();
     expect(dashboard.getByLabelText('Fat, 62 g. No goal set')).toBeTruthy();
     expect(dashboard.getByLabelText('Fiber, 28 g. No goal set')).toBeTruthy();
-    expect(dashboard.queryByTestId('calories-ember-arc')).toBeNull();
-    expect(dashboard.queryByLabelText('Protein goal progress')).toBeNull();
-    expect(dashboard.queryByLabelText('Calorie goal progress')).toBeNull();
-    expect(dashboard.getByTestId('carbs-flat-icon')).toBeTruthy();
-    expect(dashboard.getByTestId('fat-flat-icon')).toBeTruthy();
-    expect(dashboard.getByTestId('fiber-flat-icon')).toBeTruthy();
+    expect(dashboard.getByText('Energy · today')).toBeTruthy();
+    expect(dashboard.getAllByText(/protein/i)).toHaveLength(1);
+    expect(dashboard.getAllByText(/protein/i, { includeHiddenElements: true })).toHaveLength(2);
+    expect(dashboard.getByText('Fiber')).toBeTruthy();
+    expect(dashboard.getByText('Carbs')).toBeTruthy();
+    expect(dashboard.getByText('Fat')).toBeTruthy();
+    expect(dashboard.queryAllByRole('progressbar')).toHaveLength(0);
   });
 
-  it('shows only active protein and two-tone calorie progress treatments', async () => {
+  it('announces active energy progress and keeps goal context on each metric', async () => {
     const activeMetrics = metrics.map((metric): TodayMetric => {
       if (metric.code !== 'protein-g' && metric.code !== 'energy-kcal') return metric;
       const target = metric.code === 'protein-g' ? 160 : 2_200;
@@ -69,10 +71,17 @@ describe('branded nutrition dashboard', () => {
     });
     const dashboard = await render(createElement(NutritionDashboard, { metrics: activeMetrics }));
 
-    expect(dashboard.getByLabelText('Protein goal progress')).toBeTruthy();
-    expect(dashboard.getByLabelText('Calorie goal progress')).toBeTruthy();
-    expect(dashboard.getByTestId('calories-ember-arc')).toBeTruthy();
-    expect(dashboard.getByTestId('calories-yellow-orange-arc')).toBeTruthy();
+    expect(dashboard.getByLabelText('Protein, 126 g. 34 g to goal')).toBeTruthy();
+    expect(dashboard.getByLabelText('Calories, 1850 kcal. 350 kcal to goal')).toBeTruthy();
+
+    const energyProgress = dashboard.getByRole('progressbar', { name: 'Calorie goal progress' });
+    expect(energyProgress.props.accessibilityValue).toEqual({
+      min: 0,
+      max: 100,
+      now: 84,
+      text: '84 percent',
+    });
+    expect(dashboard.queryByLabelText('Protein goal progress')).toBeNull();
   });
 });
 

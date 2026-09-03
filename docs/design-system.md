@@ -1,22 +1,23 @@
 # MEAT design system
 
+Version 4 follows the warm, restrained visual language of Saarinen-era TWA: a nearly black brown canvas, parchment information panels, condensed numerals, and one decisive red accent. It should feel editorial and architectural rather than like a collection of colorful fitness widgets.
+
 ## Brand roles
 
-- Primary Plum `#4B2438` carries the MEAT wordmark, primary actions, and protein hierarchy. Deep Plum `#2A101D` and Soft Plum `#6D4357` support pressed and secondary brand states.
-- Chili Red `#D91F26` and Bright Chili `#F12A2F` communicate protein energy and progress. Chili is not the default button color.
-- Calories alone use a two-tone Ember Orange `#FF5A1F` and Yellow-Orange `#FFB000` treatment.
-- Carbs, fat, and fiber use one flat color each: Saffron `#F2B400`, Sapphire `#2457D6`, and Emerald `#00A66A`.
-- Warm Off-White `#FAF8F6` is the primary light background.
-- Dark Background `#120D10`, Surface `#1C1519`, and Muted Surface `#21181D` form the dark neutral foundation.
+- TWA Red `#C8201A` is the sole brand accent. It carries primary actions, selected states, the MEAT wordmark, and protein emphasis.
+- Dark Background `#100D08`, Dark Surface `#181410`, and Dark Card `#201C13` form the layered app canvas.
+- Parchment `#F0E8D5` is the intentional light moment for prominent information. Parchment Muted `#E2D9C4` is its progress track and Parchment Border `#C8BDA8` defines its edge.
+- On-parchment text uses `#1A1510` for primary content and `#5A4E3A` for supporting content.
+- Primary text on dark surfaces uses Warm Ivory `#E8DFC8`. Warm Border `#2E2618` separates dark cards without introducing a cool gray.
 
-UI code should consume semantic tokens (`background`, `surface`, `textPrimary`, `action`, etc.) rather than raw brand colors.
+UI code should consume semantic tokens (`background`, `surface`, `textPrimary`, `action`, etc.) rather than raw brand colors. Red is not a generic decoration token, and metric meaning must never depend on color alone.
 
 ### Metric hierarchy
 
-- Protein is primary. Use `protein` for its plum progress treatment and `proteinAccent` only for the T-bone mark and endpoint.
-- Calories are the close secondary metric. `calories` and `caloriesAccent` are the only two-tone metric pair.
-- Carbs, fat, and fiber are tertiary. Each uses one solid display color and a separate contrast-safe `*Label` token for text.
-- Values remain `textPrimary`; metric meaning must never depend on color alone.
+- The daily nutrition dashboard is one compound card, not a stack of independent metric cards.
+- Its parchment upper section leads with energy, goal context, remaining calories, and a linear progress bar. Protein is the prominent companion value and uses TWA Red.
+- Its dark lower section presents protein, fiber, carbohydrates, and fat as a compact macro strip. Dividers, spacing, labels, and reading order provide structure; the macros do not receive individual rainbow colors or illustrative icons.
+- Values use condensed, tabular numerals. Every metric retains a complete accessible label with its name, value, unit, and goal state.
 
 ### Production artwork
 
@@ -35,11 +36,20 @@ Launcher, splash, header, Android adaptive, and monochrome exports live beside t
 
 ## Surfaces and controls
 
-The initial primitives are `Surface`, `ActionButton`, `BrandMark`, and `ScreenState`. Product screens should compose these rather than inventing new card/button treatments for each feature. Primary actions use plum; chili is reserved for protein emphasis and exceptional energy/progress accents. The elevated surface tone adds a restrained neutral shadow without tinting the card.
+The initial primitives are `Surface`, `ActionButton`, `BrandMark`, and `ScreenState`. Product screens should compose these rather than inventing new card/button treatments for each feature. Primary actions use TWA Red. Dark cards use warm borders and restrained elevation; parchment is reserved for information that genuinely leads the screen.
+
+Compound surfaces may deliberately pair parchment and dark sections, as in the nutrition dashboard. They share one outer border and radius so they read as a single component. Avoid nested shadows, decorative gradients, and metric-tinted cards.
+
+## Typography
+
+- Barlow Condensed is the display and numeric face. Use it for large headings, nutrition values, and compact numeric lockups.
+- DM Sans is the body and control face.
+- Small section labels may use uppercase with generous tracking. Keep sentence case for messages, field labels, and controls where fast reading matters.
+- Nutrition values use tabular numerals and layouts must remain stable when values change.
 
 ## Light and dark mode
 
-`useThemeColors` follows the system color scheme. Both palettes preserve the same semantic roles so product components do not branch on appearance. Dark-mode metric display tokens are brighter than their light counterparts, while surfaces remain neutral rather than metric-tinted.
+`useThemeColors` follows the system color scheme, and product components consume the same semantic roles in either appearance. The Version 4 identity remains warm in both: light surfaces are parchment-based rather than stark white, while dark surfaces use the brown-black canvas and warm ivory type. Components should not branch on appearance or restore the former plum, orange, yellow, blue, and green metric palette.
 
 ## Motion and haptics
 

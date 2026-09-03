@@ -171,9 +171,13 @@ function Chip({
         paddingHorizontal: spacing.sm,
         borderRadius: radii.capsule,
         borderWidth: 1,
-        borderColor: filled || proposed ? colors.brand : colors.border,
-        backgroundColor: filled ? colors.brand : colors.surfaceMuted,
-        opacity: disabled ? 0.45 : state.pressed ? 0.7 : 1,
+        borderColor: filled ? colors.action : proposed ? colors.brand : colors.border,
+        backgroundColor: filled
+          ? state.pressed
+            ? colors.actionPressed
+            : colors.action
+          : colors.surfaceMuted,
+        opacity: disabled ? 0.45 : filled ? 1 : state.pressed ? 0.7 : 1,
       })}
     >
       <Text

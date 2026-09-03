@@ -1,18 +1,21 @@
 export const brandColors = {
-  primaryPlum: '#4B2438',
-  deepPlum: '#2A101D',
-  softPlum: '#6D4357',
-  chili: '#D91F26',
-  brightChili: '#F12A2F',
-  emberOrange: '#FF5A1F',
-  yellowOrange: '#FFB000',
-  saffron: '#F2B400',
-  sapphire: '#2457D6',
-  emerald: '#00A66A',
-  warmOffWhite: '#FAF8F6',
-  darkBackground: '#120D10',
-  darkSurface: '#1C1519',
-  darkSurfaceMuted: '#21181D',
+  twaRed: '#C8201A',
+  twaRedLight: '#E02E22',
+  clay: '#9C4228',
+  travertineDark: '#100D08',
+  chrome: '#181410',
+  cardDark: '#201C13',
+  elevatedDark: '#2A2419',
+  parchment: '#F0E8D5',
+  parchmentMuted: '#E2D9C4',
+  parchmentSubtle: '#8A7C62',
+  parchmentBorder: '#C8BDA8',
+  ink: '#1A1510',
+  inkSecondary: '#5A4E3A',
+  warmText: '#E8DFC8',
+  warmTextSecondary: '#968267',
+  warmBorder: '#2E2618',
+  warmBorderStrong: '#524535',
 } as const;
 
 export interface ThemeColors {
@@ -20,9 +23,22 @@ export interface ThemeColors {
   surface: string;
   surfaceMuted: string;
   surfaceElevated: string;
+  chrome: string;
+  chromeBorder: string;
+  macroStrip: string;
+  parchment: string;
+  parchmentMuted: string;
+  parchmentBorder: string;
   textPrimary: string;
   textSecondary: string;
   textOnAction: string;
+  textOnChrome: string;
+  textSecondaryOnChrome: string;
+  accentOnChrome: string;
+  textOnParchment: string;
+  textSecondaryOnParchment: string;
+  energyProgressOnParchment: string;
+  energyProgressOverOnParchment: string;
   border: string;
   borderStrong: string;
   brand: string;
@@ -45,74 +61,117 @@ export interface ThemeColors {
   positive: string;
   warning: string;
   destructive: string;
+  destructiveAction: string;
+  destructiveActionPressed: string;
   focusRing: string;
   shadow: string;
 }
 
+/**
+ * The light appearance is the parchment-side companion to the dark terminal
+ * palette. It keeps the same warm materials and red wayfinding accent without
+ * forcing a dark appearance when the system is set to light.
+ */
 export const lightColors: ThemeColors = {
-  background: brandColors.warmOffWhite,
-  surface: '#FFFFFF',
-  surfaceMuted: '#F4F0F2',
+  background: '#F6F0E2',
+  surface: '#FFF9EC',
+  surfaceMuted: '#E9E0CF',
   surfaceElevated: '#FFFFFF',
-  textPrimary: '#21181D',
-  textSecondary: '#665B60',
+  chrome: brandColors.chrome,
+  chromeBorder: brandColors.warmBorder,
+  macroStrip: brandColors.cardDark,
+  parchment: brandColors.parchment,
+  parchmentMuted: brandColors.parchmentMuted,
+  parchmentBorder: brandColors.parchmentBorder,
+  textPrimary: brandColors.ink,
+  textSecondary: brandColors.inkSecondary,
   textOnAction: '#FFFFFF',
-  border: '#E0D6DB',
-  borderStrong: '#C9B8C1',
-  brand: brandColors.primaryPlum,
-  brandStrong: brandColors.deepPlum,
-  brandSoft: brandColors.softPlum,
-  action: brandColors.primaryPlum,
-  actionPressed: brandColors.deepPlum,
-  actionEmphasis: brandColors.brightChili,
-  protein: brandColors.primaryPlum,
-  proteinAccent: brandColors.brightChili,
-  calories: brandColors.emberOrange,
-  caloriesAccent: brandColors.yellowOrange,
-  carbs: brandColors.saffron,
-  fat: brandColors.sapphire,
-  fiber: brandColors.emerald,
-  caloriesLabel: '#C53A00',
-  carbsLabel: '#8A6500',
-  fatLabel: '#1F46B0',
-  fiberLabel: '#007A4D',
-  positive: '#087A50',
-  warning: '#8A6500',
+  textOnChrome: brandColors.warmText,
+  textSecondaryOnChrome: brandColors.warmTextSecondary,
+  accentOnChrome: '#E85A50',
+  textOnParchment: brandColors.ink,
+  textSecondaryOnParchment: brandColors.inkSecondary,
+  energyProgressOnParchment: brandColors.clay,
+  energyProgressOverOnParchment: brandColors.twaRed,
+  border: '#D5C9B5',
+  borderStrong: '#B7A98F',
+  brand: brandColors.twaRed,
+  brandStrong: '#9F1915',
+  brandSoft: brandColors.clay,
+  action: brandColors.twaRed,
+  actionPressed: '#9F1915',
+  actionEmphasis: brandColors.twaRedLight,
+  protein: brandColors.twaRed,
+  proteinAccent: brandColors.twaRedLight,
+  calories: brandColors.clay,
+  caloriesAccent: brandColors.twaRed,
+  carbs: brandColors.inkSecondary,
+  fat: brandColors.inkSecondary,
+  fiber: brandColors.inkSecondary,
+  caloriesLabel: brandColors.inkSecondary,
+  carbsLabel: brandColors.inkSecondary,
+  fatLabel: brandColors.inkSecondary,
+  fiberLabel: brandColors.inkSecondary,
+  positive: '#3C6E54',
+  warning: '#8A5A20',
   destructive: '#B4232B',
-  focusRing: brandColors.sapphire,
-  shadow: 'rgba(42, 16, 29, 0.08)',
+  destructiveAction: '#9F1915',
+  destructiveActionPressed: '#80120F',
+  focusRing: brandColors.twaRed,
+  shadow: 'rgba(16, 13, 8, 0.12)',
 };
 
+/**
+ * Figma Make Version 4: Saarinen-era terminal warmth, parchment information
+ * panels, and TWA red used as a restrained navigation/action signal.
+ */
 export const darkColors: ThemeColors = {
-  background: brandColors.darkBackground,
-  surface: brandColors.darkSurface,
-  surfaceMuted: brandColors.darkSurfaceMuted,
-  surfaceElevated: '#2A2025',
-  textPrimary: '#FFF8FB',
-  textSecondary: '#D0C2C9',
+  background: brandColors.travertineDark,
+  surface: brandColors.cardDark,
+  surfaceMuted: brandColors.chrome,
+  surfaceElevated: brandColors.elevatedDark,
+  chrome: brandColors.chrome,
+  chromeBorder: brandColors.warmBorder,
+  macroStrip: brandColors.cardDark,
+  parchment: brandColors.parchment,
+  parchmentMuted: brandColors.parchmentMuted,
+  parchmentBorder: brandColors.parchmentBorder,
+  textPrimary: brandColors.warmText,
+  textSecondary: brandColors.warmTextSecondary,
   textOnAction: '#FFFFFF',
-  border: '#473740',
-  borderStrong: '#6B5260',
-  brand: '#B986A0',
-  brandStrong: '#F0C7DA',
-  brandSoft: '#A4758C',
-  action: brandColors.softPlum,
-  actionPressed: brandColors.primaryPlum,
-  actionEmphasis: '#FF5D62',
-  protein: '#B986A0',
-  proteinAccent: '#FF5D62',
-  calories: '#FF7A33',
-  caloriesAccent: '#FFC247',
-  carbs: '#FFD24A',
-  fat: '#5F86FF',
-  fiber: '#35D48B',
-  caloriesLabel: '#FF9A61',
-  carbsLabel: '#FFD24A',
-  fatLabel: '#84A2FF',
-  fiberLabel: '#5CDF9D',
-  positive: '#5CDF9D',
-  warning: '#FFD24A',
-  destructive: '#FF777C',
-  focusRing: '#84A2FF',
-  shadow: 'rgba(0, 0, 0, 0.36)',
+  textOnChrome: brandColors.warmText,
+  textSecondaryOnChrome: brandColors.warmTextSecondary,
+  accentOnChrome: '#E85A50',
+  textOnParchment: brandColors.ink,
+  textSecondaryOnParchment: brandColors.inkSecondary,
+  energyProgressOnParchment: brandColors.clay,
+  energyProgressOverOnParchment: brandColors.twaRed,
+  border: brandColors.warmBorder,
+  borderStrong: brandColors.warmBorderStrong,
+  // Text accents are lifted for AA contrast on dark cards; solid controls keep
+  // the exact TWA red through `action`.
+  brand: '#E85A50',
+  brandStrong: '#F06B61',
+  brandSoft: brandColors.twaRedLight,
+  action: brandColors.twaRed,
+  actionPressed: '#9F1915',
+  actionEmphasis: brandColors.twaRedLight,
+  protein: '#E85A50',
+  proteinAccent: '#F06B61',
+  calories: '#D69A79',
+  caloriesAccent: '#F0B493',
+  carbs: brandColors.warmText,
+  fat: brandColors.warmText,
+  fiber: brandColors.warmText,
+  caloriesLabel: '#DDB092',
+  carbsLabel: brandColors.warmText,
+  fatLabel: brandColors.warmText,
+  fiberLabel: brandColors.warmText,
+  positive: '#83B995',
+  warning: '#E4B56C',
+  destructive: '#F06B61',
+  destructiveAction: '#9F1915',
+  destructiveActionPressed: '#80120F',
+  focusRing: '#E85A50',
+  shadow: 'rgba(0, 0, 0, 0.34)',
 };

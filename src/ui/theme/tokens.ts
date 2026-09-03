@@ -1,3 +1,5 @@
+import type { TextStyle } from 'react-native';
+
 export const spacing = {
   xxs: 4,
   xs: 8,
@@ -9,46 +11,137 @@ export const spacing = {
 } as const;
 
 export const radii = {
-  sm: 10,
-  md: 16,
-  lg: 22,
+  xs: 6,
+  sm: 8,
+  control: 8,
+  md: 12,
+  card: 12,
+  lg: 24,
+  sheet: 24,
   capsule: 999,
 } as const;
 
 export const iconSizes = {
   compact: 16,
   control: 20,
-  navigation: 24,
+  navigation: 18,
   brand: 36,
   metric: 40,
 } as const;
 
+export const fontFamilies = {
+  body: 'DMSans_400Regular',
+  bodyLight: 'DMSans_300Light',
+  bodyMedium: 'DMSans_500Medium',
+  bodySemibold: 'DMSans_600SemiBold',
+  display: 'BarlowCondensed_400Regular',
+  displayMedium: 'BarlowCondensed_500Medium',
+  displaySemibold: 'BarlowCondensed_600SemiBold',
+} as const;
+
 export const typography = {
-  caption: { fontSize: 13, lineHeight: 18 },
-  body: { fontSize: 17, lineHeight: 24 },
-  bodyStrong: { fontSize: 17, lineHeight: 24, fontWeight: '600' as const },
-  title3: { fontSize: 20, lineHeight: 26, fontWeight: '600' as const },
-  title2: { fontSize: 22, lineHeight: 28, fontWeight: '700' as const },
-  title1: { fontSize: 28, lineHeight: 34, fontWeight: '700' as const },
-  largeTitle: { fontSize: 34, lineHeight: 41, fontWeight: '700' as const },
-  wordmark: { fontSize: 22, lineHeight: 28, fontWeight: '800' as const, letterSpacing: 1.1 },
+  caption: {
+    fontFamily: fontFamilies.body,
+    fontSize: 13,
+    lineHeight: 18,
+  },
+  body: {
+    fontFamily: fontFamilies.bodyLight,
+    fontSize: 17,
+    lineHeight: 24,
+  },
+  bodyStrong: {
+    fontFamily: fontFamilies.bodyMedium,
+    fontSize: 17,
+    lineHeight: 24,
+    fontWeight: '500' as const,
+  },
+  title3: {
+    fontFamily: fontFamilies.displayMedium,
+    fontSize: 22,
+    lineHeight: 27,
+    fontWeight: '500' as const,
+  },
+  title2: {
+    fontFamily: fontFamilies.displayMedium,
+    fontSize: 28,
+    lineHeight: 33,
+    fontWeight: '500' as const,
+  },
+  title1: {
+    fontFamily: fontFamilies.displayMedium,
+    fontSize: 32,
+    lineHeight: 37,
+    fontWeight: '500' as const,
+  },
+  largeTitle: {
+    fontFamily: fontFamilies.display,
+    fontSize: 36,
+    lineHeight: 40,
+    fontWeight: '400' as const,
+    letterSpacing: -0.5,
+  },
+  screenTitle: {
+    fontFamily: fontFamilies.display,
+    fontSize: 36,
+    lineHeight: 40,
+    fontWeight: '400' as const,
+    letterSpacing: -0.5,
+    textTransform: 'uppercase' as const,
+  },
+  wordmark: {
+    fontFamily: fontFamilies.displayMedium,
+    fontSize: 24,
+    lineHeight: 28,
+    fontWeight: '500' as const,
+    letterSpacing: 2.5,
+  },
+  overline: {
+    fontFamily: fontFamilies.bodyMedium,
+    fontSize: 10,
+    lineHeight: 14,
+    fontWeight: '500' as const,
+    letterSpacing: 2.5,
+    textTransform: 'uppercase' as const,
+  },
+  tabLabel: {
+    fontFamily: fontFamilies.bodyMedium,
+    fontSize: 9,
+    lineHeight: 12,
+    fontWeight: '500' as const,
+    letterSpacing: 1.5,
+    textTransform: 'uppercase' as const,
+  },
+  metricHero: {
+    fontFamily: fontFamilies.displayMedium,
+    fontSize: 58,
+    lineHeight: 58,
+    fontWeight: '500' as const,
+    fontVariant: ['tabular-nums'] as TextStyle['fontVariant'],
+    letterSpacing: -2,
+  },
   metricPrimary: {
+    fontFamily: fontFamilies.displayMedium,
     fontSize: 44,
-    lineHeight: 50,
-    fontWeight: '700' as const,
-    fontVariant: ['tabular-nums'] as const,
+    lineHeight: 48,
+    fontWeight: '500' as const,
+    fontVariant: ['tabular-nums'] as TextStyle['fontVariant'],
+    letterSpacing: -1,
   },
   metricSecondary: {
-    fontSize: 34,
-    lineHeight: 40,
-    fontWeight: '700' as const,
-    fontVariant: ['tabular-nums'] as const,
+    fontFamily: fontFamilies.displaySemibold,
+    fontSize: 36,
+    lineHeight: 38,
+    fontWeight: '600' as const,
+    fontVariant: ['tabular-nums'] as TextStyle['fontVariant'],
+    letterSpacing: -0.5,
   },
   metricCompact: {
-    fontSize: 26,
-    lineHeight: 32,
-    fontWeight: '600' as const,
-    fontVariant: ['tabular-nums'] as const,
+    fontFamily: fontFamilies.displayMedium,
+    fontSize: 22,
+    lineHeight: 24,
+    fontWeight: '500' as const,
+    fontVariant: ['tabular-nums'] as TextStyle['fontVariant'],
   },
 } as const;
 

@@ -196,12 +196,8 @@ function FoodDetailSheetBody({
                   <Text
                     allowFontScaling
                     style={[
-                      {
-                        fontSize: lead ? typography.metricSecondary.fontSize : typography.title3.fontSize,
-                        lineHeight: lead ? typography.metricSecondary.lineHeight : typography.title3.lineHeight,
-                        fontWeight: lead ? typography.metricSecondary.fontWeight : typography.title3.fontWeight,
-                        fontVariant: ['tabular-nums'],
-                      },
+                      lead ? typography.metricSecondary : typography.title3,
+                      { fontVariant: ['tabular-nums'] },
                       { color },
                     ]}
                   >

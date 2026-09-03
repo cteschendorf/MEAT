@@ -15,7 +15,7 @@ export function TabStack({ screenName }: TabStackProps) {
         contentStyle: { backgroundColor: colors.background },
         headerBackButtonDisplayMode: 'minimal',
         headerShadowVisible: false,
-        headerStyle: { backgroundColor: colors.background },
+        headerStyle: { backgroundColor: colors.chrome },
         headerTintColor: colors.brand,
         headerTitle: () => <BrandLockup markSize={30} />,
       }}
