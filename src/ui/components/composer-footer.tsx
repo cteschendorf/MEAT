@@ -18,8 +18,12 @@ export interface ComposerFooterProps {
 /**
  * The two controls used every time, in the thumb zone.
  *
- * The mode's input and the button that ends the meal sit at the bottom,
- * pinned above the keyboard by the sheet's `KeyboardAvoidingView`. That is a
+ * The mode's input and the button that ends the meal share one row, the input
+ * taking whatever width the button leaves. Stacking them cost a second row of
+ * height above the keyboard for no gain: the button's label is three words,
+ * and the field does not need a phone's full width to hold "hotdog".
+ *
+ * Pinned above the keyboard by the sheet's `KeyboardAvoidingView`. That is a
  * structural answer to keyboard occlusion (THI-314) rather than a patch: a
  * field at the bottom cannot be covered by a keyboard that pushes it up.
  *
@@ -56,20 +60,24 @@ export function ComposerFooter({ input, commit, onCommit, message }: ComposerFoo
         </Text>
       ) : null}
 
-      {input}
-
       {commit.hint ? (
         <Text allowFontScaling style={[typography.caption, { color: colors.textSecondary }]}>
           {commit.hint}
         </Text>
       ) : null}
 
-      <ActionButton
-        label={commit.label}
-        accessibilityLabel={commit.accessibilityLabel}
-        disabled={commit.disabled}
-        onPress={onCommit}
-      />
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.xs }}>
+        {input ? <View style={{ flex: 1 }}>{input}</View> : null}
+        <ActionButton
+          label={commit.label}
+          accessibilityLabel={commit.accessibilityLabel}
+          disabled={commit.disabled}
+          onPress={onCommit}
+          // With no input beside it the button takes the row; with one it
+          // takes only what its label needs, and the field gets the rest.
+          style={input ? undefined : { flex: 1 }}
+        />
+      </View>
     </View>
   );
 }

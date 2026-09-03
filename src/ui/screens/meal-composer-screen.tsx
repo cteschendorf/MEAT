@@ -224,8 +224,8 @@ export function MealComposerScreen() {
         runningTotal={day.runningTotal}
         locked={status.locked}
         onClose={() => void actions.cancel()}
-        onOpenTimePicker={() => setDetailsOpen(true)}
-        onChooseMealName={chooseMealName}
+        onOpenDetails={() => setDetailsOpen(true)}
+        onAcceptSuggestedName={() => chooseMealName(sections.suggestedMealName)}
       />
 
       <ComposerMealDetails
@@ -233,6 +233,8 @@ export function MealComposerScreen() {
         occurredAt={occurredAt}
         customName={context.customMealName}
         titleText={context.titleText}
+        suggestedMealName={sections.suggestedMealName}
+        onChooseMealName={chooseMealName}
         locationText={context.locationText}
         captionText={context.captionText}
         photos={[...session.existingMedia, ...session.stagedPhotos]}

@@ -110,15 +110,15 @@ export function EntryModeSearch({
               accessibilityRole="header"
               allowFontScaling
               style={[
-                typography.caption,
+                typography.title3,
                 {
-                  color: colors.textSecondary,
+                  color: colors.textPrimary,
                   paddingHorizontal: spacing.md,
-                  paddingTop: spacing.xs,
+                  paddingTop: spacing.sm,
                 },
               ]}
             >
-              {tier.title.toUpperCase()}
+              {tier.title}
             </Text>
             {tier.loading ? (
               <Text
@@ -175,11 +175,11 @@ function SuggestionSection({ title, suggestions, busy, onAdd }: SectionProps) {
         accessibilityRole="header"
         allowFontScaling
         style={[
-          typography.caption,
-          { color: colors.textSecondary, paddingHorizontal: spacing.md, paddingTop: spacing.xs },
+          typography.title3,
+          { color: colors.textPrimary, paddingHorizontal: spacing.md, paddingTop: spacing.sm },
         ]}
       >
-        {title.toUpperCase()}
+        {title}
       </Text>
       {suggestions.map((suggestion) => (
         <View

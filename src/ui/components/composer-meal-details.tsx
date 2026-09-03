@@ -6,6 +6,7 @@ import type { MediaAsset } from '@/domain';
 import type { MediaId } from '@/domain/shared/ids';
 import type { LocalMealPhoto } from '@/platform';
 import { ActionButton } from '@/ui/components/action-button';
+import { presetMealNames } from '@/ui/composer/meal-context';
 import { minimumTouchTarget, radii, spacing, typography } from '@/ui/theme/tokens';
 import { useThemeColors } from '@/ui/theme/use-theme';
 
@@ -16,6 +17,9 @@ export interface ComposerMealDetailsProps {
   readonly occurredAt: Date;
   readonly customName: boolean;
   readonly titleText: string;
+  /** The name this hour usually goes by, outlined when none is chosen. */
+  readonly suggestedMealName: (typeof presetMealNames)[number];
+  readonly onChooseMealName: (name: string | null) => void;
   readonly locationText: string;
   readonly captionText: string;
   readonly photos: readonly (MediaAsset | LocalMealPhoto)[];
@@ -58,6 +62,8 @@ export function ComposerMealDetails(props: ComposerMealDetailsProps) {
     occurredAt,
     customName,
     titleText,
+    suggestedMealName,
+    onChooseMealName,
     locationText,
     captionText,
     photos,
@@ -145,6 +151,31 @@ export function ComposerMealDetails(props: ComposerMealDetailsProps) {
             />
           </View>
           {picker}
+
+          <Text allowFontScaling style={[typography.bodyStrong, { color: colors.textPrimary }]}>
+            Meal name
+          </Text>
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.xs }}>
+            <NameChip
+              label="None"
+              selected={!titleText}
+              suggested={false}
+              disabled={busy}
+              onPress={() => onChooseMealName(null)}
+            />
+            {presetMealNames.map((name) => (
+              <NameChip
+                key={name}
+                label={name}
+                selected={titleText === name}
+                // Outlined, not filled: a proposal from the clock, not a claim
+                // about what the meal was. Only a tap makes it the latter.
+                suggested={!titleText && name === suggestedMealName}
+                disabled={busy}
+                onPress={() => onChooseMealName(name)}
+              />
+            ))}
+          </View>
 
           {customName ? (
             <TextInput
@@ -240,5 +271,47 @@ export function ComposerMealDetails(props: ComposerMealDetailsProps) {
         </ScrollView>
       </View>
     </Modal>
+  );
+}
+
+interface NameChipProps {
+  readonly label: string;
+  readonly selected: boolean;
+  readonly suggested: boolean;
+  readonly disabled: boolean;
+  readonly onPress: () => void;
+}
+
+function NameChip({ label, selected, suggested, disabled, onPress }: NameChipProps) {
+  const colors = useThemeColors();
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityState={{ selected, disabled }}
+      accessibilityLabel={suggested ? `${label}, suggested for this time of day` : label}
+      disabled={disabled}
+      onPress={onPress}
+      style={(state) => ({
+        alignItems: 'center',
+        justifyContent: 'center',
+        minHeight: minimumTouchTarget,
+        paddingHorizontal: spacing.sm,
+        borderRadius: radii.capsule,
+        borderWidth: 1,
+        borderColor: selected || suggested ? colors.brand : colors.border,
+        backgroundColor: selected ? colors.brand : 'transparent',
+        opacity: disabled ? 0.45 : state.pressed ? 0.7 : 1,
+      })}
+    >
+      <Text
+        allowFontScaling
+        style={[
+          selected ? typography.bodyStrong : typography.body,
+          { color: selected ? colors.textOnAction : colors.textPrimary },
+        ]}
+      >
+        {label}
+      </Text>
+    </Pressable>
   );
 }
