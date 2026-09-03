@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import { Text, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ActionButton } from '@/ui/components/action-button';
 import type { CommitAction } from '@/ui/composer/commit-action';
@@ -27,12 +28,19 @@ export interface ComposerFooterProps {
  * structural answer to keyboard occlusion (THI-314) rather than a patch: a
  * field at the bottom cannot be covered by a keyboard that pushes it up.
  *
+ * With the keyboard closed, the resting gap below the button still has to
+ * clear the home indicator — the sheet has no native header or tab bar to
+ * absorb that inset for it, so this claims the bottom safe area itself
+ * rather than the flat `spacing.md` it used to sit on, which left the button
+ * uncomfortably close to the edge on notched phones.
+ *
  * The button always says why it is refusing. A disabled control with no
  * explanation teaches nothing and reads as broken, which is what THI-315 was
  * about.
  */
 export function ComposerFooter({ input, commit, onCommit, message }: ComposerFooterProps) {
   const colors = useThemeColors();
+  const insets = useSafeAreaInsets();
 
   return (
     <View
@@ -43,7 +51,7 @@ export function ComposerFooter({ input, commit, onCommit, message }: ComposerFoo
         gap: spacing.xs,
         paddingHorizontal: spacing.md,
         paddingTop: spacing.sm,
-        paddingBottom: spacing.md,
+        paddingBottom: Math.max(spacing.md, insets.bottom),
       }}
     >
       {message ? (
