@@ -100,9 +100,14 @@ export class OnboardingSetupService {
 
   async save(input: OnboardingSetupInput, now: ISODateTime): Promise<void> {
     const goals = buildNutritionGoals(input.goals, now);
-    // Batch 3 quantity inputs are intentionally grams-only. Keep the stored
-    // preference aligned with the UI until ounce-aware entry ships end to end.
-    await this.preferences.save({ ...input.preferences, massUnit: 'g' }, now);
+    // The unit preference used to be overwritten with 'g' right here, because
+    // no logging surface could honour anything else and storing a choice the
+    // app would ignore is worse than not offering it. The detail sheet has
+    // honoured it since THI-317 — `unitChoicesFor` leads with the chosen unit
+    // and `defaultPortionChoice` opens on it — so the override outlived its
+    // reason and became a picker that highlights and then silently reverts
+    // (THI-340).
+    await this.preferences.save(input.preferences, now);
     for (const goal of goals) await this.goals.save(goal);
     await this.preferences.markOnboardingComplete(now);
   }
