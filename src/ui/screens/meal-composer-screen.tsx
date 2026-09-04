@@ -1,7 +1,7 @@
 import DateTimePicker, { type DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useMemo, useState } from 'react';
-import { KeyboardAvoidingView, Platform, TextInput, View } from 'react-native';
+import { TextInput, View } from 'react-native';
 
 import type { FoodCandidate } from '@/domain/food/source';
 import type { ISODateTime } from '@/domain/shared/ids';
@@ -17,6 +17,7 @@ import {
 } from '@/ui';
 import { ComposerFooter } from '@/ui/components/composer-footer';
 import { ComposerHeader } from '@/ui/components/composer-header';
+import { ComposerKeyboardAvoider } from '@/ui/components/composer-keyboard-avoider';
 import { ComposerMealDetails } from '@/ui/components/composer-meal-details';
 import { ComposerStagedItems } from '@/ui/components/composer-staged-items';
 import { ComposerTabBar } from '@/ui/components/composer-tab-bar';
@@ -210,11 +211,10 @@ export function MealComposerScreen() {
   });
 
   return (
-    <KeyboardAvoidingView
+    <ComposerKeyboardAvoider
       // The footer holds the mode's input and the commit button, so pushing the
       // whole sheet up is what keeps both in the thumb zone. Numeric keypads
       // have no return key: a field the keyboard covers has no way out (THI-314).
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       style={{ flex: 1, backgroundColor: colors.background }}
     >
       <ComposerHeader
@@ -383,6 +383,6 @@ export function MealComposerScreen() {
           void actions.confirm();
         }}
       />
-    </KeyboardAvoidingView>
+    </ComposerKeyboardAvoider>
   );
 }

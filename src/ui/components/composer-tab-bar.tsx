@@ -27,6 +27,10 @@ export interface ComposerTabBarProps {
  * The row scrolls rather than compressing. At the largest accessibility text
  * sizes five labels do not fit, and a tab whose text is clipped to three
  * letters is not a tab anyone can use.
+ *
+ * The row's own edge padding matches the header, the footer and the results
+ * list (`spacing.md`) so the sheet reads as one column of content rather
+ * than a narrower band of chrome above a wider one.
  */
 export function ComposerTabBar({ active, onSelect }: ComposerTabBarProps) {
   const colors = useThemeColors();
@@ -43,7 +47,7 @@ export function ComposerTabBar({ active, onSelect }: ComposerTabBarProps) {
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
-        contentContainerStyle={{ flexGrow: 1, paddingHorizontal: spacing.xs }}
+        contentContainerStyle={{ flexGrow: 1, paddingHorizontal: spacing.md }}
       >
         {entryTabs.map((tab) => {
           const selected = tab.id === active;

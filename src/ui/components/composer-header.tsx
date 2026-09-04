@@ -1,4 +1,5 @@
 import { Pressable, ScrollView, Text, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import type { presetMealNames } from '@/ui/composer/meal-context';
 import type { RunningTotal } from '@/ui/composer/running-total';
@@ -38,6 +39,13 @@ export interface ComposerHeaderProps {
  * The running total in particular has to be here rather than in the scroll: it
  * answers "does this fit", and it used to leave the screen at exactly the
  * moment that question gets asked (THI-307).
+ *
+ * The screen this sits on has no native header (it's the sheet's own chrome,
+ * not a pushed page), so this row is what the notch or the Dynamic Island
+ * would otherwise sit on top of — hence the manual top inset. Horizontal
+ * padding matches the footer and the results list below (`spacing.md`)
+ * rather than the tighter `spacing.xs` this used to carry, so the sheet's
+ * left and right edges line up from top to bottom.
  */
 export function ComposerHeader({
   occurredAt,
@@ -50,6 +58,7 @@ export function ComposerHeader({
   onAcceptSuggestedName,
 }: ComposerHeaderProps) {
   const colors = useThemeColors();
+  const insets = useSafeAreaInsets();
   const time = occurredAt.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
 
   return (
@@ -58,6 +67,7 @@ export function ComposerHeader({
         backgroundColor: colors.surface,
         borderBottomColor: colors.border,
         borderBottomWidth: 1,
+        paddingTop: insets.top,
       }}
     >
       <ScrollView
@@ -68,7 +78,7 @@ export function ComposerHeader({
           flexGrow: 1,
           alignItems: 'center',
           gap: spacing.xs,
-          paddingHorizontal: spacing.xs,
+          paddingHorizontal: spacing.md,
           paddingVertical: spacing.xs,
         }}
       >

@@ -95,7 +95,12 @@ export default function RootLayout() {
         }}
       >
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-        <Stack.Screen name="log-food" options={{ title: 'Log food' }} />
+        {/* The composer is a sheet with its own chrome — a ✕, not a back
+            chevron, and a chip row that already says where you are. A native
+            "Log food" bar on top of that is two headers for one screen: it eats
+            the safe-area inset ComposerHeader now claims for itself, and it's
+            why the entry sheet reads as busier than the reference. */}
+        <Stack.Screen name="log-food" options={{ headerShown: false }} />
         <Stack.Screen name="meals-recipes" options={{ title: 'Saved meals & recipes' }} />
         <Stack.Screen name="scan-barcode" options={{ title: 'Scan barcode' }} />
         <Stack.Screen name="manual-food" options={{ title: 'Manual food' }} />
