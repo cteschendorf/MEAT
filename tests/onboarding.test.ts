@@ -35,7 +35,16 @@ test('setup validates goal semantics before persistence', () => {
   );
 });
 
-test('candidate setup normalizes unsupported ounce drafts to grams', async () => {
+test('the unit the user picked is the unit that gets stored', async () => {
+  // This asserted the opposite until 2 Sep, and was right to at the time: no
+  // logging surface could honour ounces, and storing a choice the app would
+  // ignore is worse than not offering one.
+  //
+  // THI-317 made the detail sheet honour it — `unitChoicesFor` leads with the
+  // chosen unit, `defaultPortionChoice` opens on it — but the override in
+  // `save` was left behind. The result was a picker that highlighted Ounces
+  // and then silently reverted to Grams on the next load, which is the worst
+  // of the three possible behaviours (THI-340).
   const savedPreferences: UserPreferences[] = [];
   const preferenceRepo: UserPreferencesRepository = {
     async get() { return null; },
@@ -56,7 +65,36 @@ test('candidate setup normalizes unsupported ounce drafts to grams', async () =>
     now,
   );
 
-  assert.equal(savedPreferences[0]?.massUnit, 'g');
+  assert.equal(savedPreferences[0]?.massUnit, 'oz');
+});
+
+test('the rest of the preferences travel with it, untouched', async () => {
+  // The override was a spread followed by one clobbered key, so it is worth
+  // pinning that nothing else was being quietly rewritten alongside it.
+  const savedPreferences: UserPreferences[] = [];
+  const preferenceRepo: UserPreferencesRepository = {
+    async get() { return null; },
+    async save(value) { savedPreferences.push(value); },
+    async isOnboardingComplete() { return false; },
+    async markOnboardingComplete() {},
+  };
+  const goalRepo: GoalRepository = {
+    async save() {},
+    async listActive() { return []; },
+  };
+
+  const chosen: UserPreferences = {
+    ...defaultUserPreferences,
+    massUnit: 'oz',
+    appearance: 'dark',
+    weekStartsOn: 1,
+  };
+  await new OnboardingSetupService(preferenceRepo, goalRepo).save(
+    { preferences: chosen, goals: [] },
+    now,
+  );
+
+  assert.deepEqual(savedPreferences[0], chosen);
 });
 
 test('skip stores neutral preferences and informational goals, then completes onboarding', async () => {

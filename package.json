@@ -25,6 +25,8 @@
     "usda:rebuild": "python3 scripts/usda-core/generate.py"
   },
   "dependencies": {
+    "@expo-google-fonts/barlow-condensed": "^0.4.1",
+    "@expo-google-fonts/dm-sans": "^0.4.2",
     "@react-native-community/datetimepicker": "9.1.0",
     "expo": "~57.0.9",
     "expo-camera": "~57.0.4",
@@ -69,6 +71,9 @@
     "testMatch": [
       "<rootDir>/tests/**/*.component.test.ts",
       "<rootDir>/tests/**/*.component.test.tsx"
+    ],
+    "setupFiles": [
+      "<rootDir>/tests/setup/safe-area-context.ts"
     ]
   }
 }
