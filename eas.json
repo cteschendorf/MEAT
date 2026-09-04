@@ -6,7 +6,7 @@
   "build": {
     "production": {
       "distribution": "store",
-      "autoIncrement": false,
+      "autoIncrement": true,
       "ios": {
         "resourceClass": "m-medium"
       }
