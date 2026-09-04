@@ -1,4 +1,5 @@
 import type { TodayMetric, TodayMetricCode } from '@/services/today/snapshot';
+import { goalImpact, type GoalImpact } from '@/ui/goal-impact';
 
 export const dashboardMetricLabels: Readonly<Record<TodayMetricCode, string>> = {
   'energy-kcal': 'Calories',
@@ -56,18 +57,39 @@ export function metricGoalText(metric: TodayMetric): string {
       return `${estimatePrefix}${amountText(metric, progress.remaining ?? 0)} to goal`;
     case 'within':
       return `${estimatePrefix}Within target`;
-    case 'exceeded':
-      return `${estimatePrefix}Above target`;
+    case 'exceeded': {
+      // A cap that has been passed should say by how much. "Above target" alone
+      // reads the same whether you are 5 kcal over or 500.
+      const over = metricGoalImpact(metric).overBy;
+      return over === null
+        ? `${estimatePrefix}Above target`
+        : `${estimatePrefix}Above target by ${amountText(metric, over)}`;
+    }
     default:
       return `${estimatePrefix}Tracking only`;
   }
 }
 
+/**
+ * The dashboard's reading of one metric, through the same rules the food detail
+ * sheet uses (THI-333).
+ *
+ * The cards keep their own visual identity; what is shared is the *semantics* —
+ * which shape the target has, and whether a filled bar is an achievement or an
+ * overrun. Without this the dashboard had its own clamping (an infinite ratio
+ * became a full bar) and no way to tell a cleared floor from a passed ceiling.
+ */
+export function metricGoalImpact(metric: TodayMetric): GoalImpact {
+  return goalImpact({
+    code: metric.code,
+    current: metric.state === 'unknown' ? null : metric.value,
+    target: metric.goal?.goal.target ?? null,
+  });
+}
+
 export function metricProgress(metric: TodayMetric): number | null {
-  const ratio = metric.goal?.ratio;
-  if (ratio === null || ratio === undefined || Number.isNaN(ratio) || ratio < 0) return null;
-  if (!Number.isFinite(ratio)) return 1;
-  return Math.min(1, ratio);
+  const impact = metricGoalImpact(metric);
+  return impact.shape === 'untargeted' ? null : impact.currentFraction;
 }
 
 export function metricAccessibilityLabel(metric: TodayMetric): string {

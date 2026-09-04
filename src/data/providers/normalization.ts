@@ -2,7 +2,12 @@ import type { Food, FoodServing, NutrientValue, NutritionSource } from '@/domain
 import type { FoodCandidate, FoodPortion, FoodSourceId } from '@/domain/food/source';
 import { foodIdForRef } from '@/domain/food/source';
 import type { FoodServingId, ISODateTime, SourceRecordId } from '@/domain/shared/ids';
+import { gramsForAmount, type MassUnit } from '@/domain/nutrition/measurement';
 import { ApiError } from '@/data/providers/api-error';
+import {
+  assumedGramsForMillilitres,
+  servingMeasureFromText,
+} from '@/data/providers/serving-size-text';
 
 type JsonObject = Readonly<Record<string, unknown>>;
 
@@ -27,6 +32,43 @@ function nonnegativeNumeric(value: unknown): number | undefined {
 function asRecordId(value: unknown): SourceRecordId | undefined {
   if (typeof value === 'number' && Number.isFinite(value)) return String(value) as SourceRecordId;
   return nonEmptyString(value) as SourceRecordId | undefined;
+}
+
+/**
+ * Provider spellings for the mass units a serving can be stated in.
+ *
+ * A package's own serving size is the portion people actually eat, so losing it
+ * sends them to a synthesized "100 g" that nobody weighs out. Only a literal
+ * "g" used to be recognised, which quietly discarded every serving expressed in
+ * ounces or kilograms. Volume spellings are deliberately absent: converting
+ * those needs the food's density, and inventing one is not on offer (THI-317).
+ */
+const massUnitSpellings: Readonly<Record<string, MassUnit>> = {
+  g: 'g',
+  gr: 'g',
+  gram: 'g',
+  grams: 'g',
+  gramme: 'g',
+  grammes: 'g',
+  grm: 'g',
+  kg: 'kg',
+  kilogram: 'kg',
+  kilograms: 'kg',
+  oz: 'oz',
+  ounce: 'oz',
+  ounces: 'oz',
+  lb: 'lb',
+  lbs: 'lb',
+  pound: 'lb',
+  pounds: 'lb',
+};
+
+/** Grams for a serving stated in a mass unit, or undefined when it is not one. */
+function servingGramWeight(amount: number | undefined, unit: string | undefined): number | undefined {
+  if (amount === undefined || !unit) return undefined;
+  const massUnit = massUnitSpellings[unit.trim().toLowerCase()];
+  if (!massUnit) return undefined;
+  return gramsForAmount(amount, massUnit) ?? undefined;
 }
 
 function portionFromServing(serving: FoodServing): FoodPortion {
@@ -196,7 +238,7 @@ function usdaRecord(value: unknown, now: ISODateTime): FoodCandidate | null {
   const servingUnit = nonEmptyString(value.servingSizeUnit);
   const brand = nonEmptyString(value.brandName ?? value.brandOwner);
   const barcode = nonEmptyString(value.gtinUpc ?? value.barcode);
-  const servingGrams = servingUnit?.toLowerCase() === 'g' ? servingSize : undefined;
+  const servingGrams = servingGramWeight(servingSize, servingUnit);
   const servings: FoodServing[] = servingGrams === undefined
     ? []
     : [{
@@ -258,20 +300,66 @@ export function parseUsdaFoodResponse(value: unknown, now: ISODateTime): FoodCan
   return candidate;
 }
 
+/**
+ * The package's own serving, in grams.
+ *
+ * Three fields can carry it and Open Food Facts populates them unevenly, so
+ * they are tried in order of how little has to be assumed (THI-338):
+ *
+ * 1. `serving_quantity` with a mass `serving_quantity_unit` — stated outright.
+ * 2. A mass inside `serving_size`, the label text: "1 bar (40 g)". Also stated
+ *    outright; we were using this field as a caption and discarding the number.
+ * 3. `serving_quantity` with no unit at all. OFF normalises that number to
+ *    grams or millilitres, and under the assumption below both land on the same
+ *    figure — so the missing unit stops mattering rather than being guessed at.
+ * 4. A volume, from either field, converted at 1 g/ml. This is the one
+ *    assumption, and `serving-size-text.ts` says what it costs.
+ *
+ * Before this, 1, 2 and 3 all required `serving_quantity_unit` to be present —
+ * a late addition to the schema that many products predate — so every one of
+ * them fell through to a synthesized 100 g.
+ */
+function offServingGrams(value: JsonObject): number | undefined {
+  const quantity = numeric(value.serving_quantity);
+  const unit = nonEmptyString(value.serving_quantity_unit);
+  const stated = servingGramWeight(quantity, unit);
+  if (stated !== undefined) return stated;
+
+  const fromText = servingMeasureFromText(nonEmptyString(value.serving_size));
+  if (fromText?.grams !== undefined) return fromText.grams;
+
+  if (quantity !== undefined && quantity > 0 && !unit) return quantity;
+
+  if (fromText?.millilitres !== undefined) {
+    return assumedGramsForMillilitres(fromText.millilitres);
+  }
+  if (quantity !== undefined && quantity > 0 && unit) {
+    const millilitres = servingMeasureFromText(`${quantity} ${unit}`)?.millilitres;
+    if (millilitres !== undefined) return assumedGramsForMillilitres(millilitres);
+  }
+  return undefined;
+}
+
 function offServing(value: JsonObject, sourceId: FoodSourceId, recordId: SourceRecordId): readonly FoodServing[] {
-  const servingQuantity = numeric(value.serving_quantity);
-  const servingUnit = nonEmptyString(value.serving_quantity_unit);
-  if (servingQuantity === undefined || servingQuantity <= 0 || !servingUnit) return [];
+  const grams = offServingGrams(value);
+  if (grams === undefined || grams <= 0) return [];
+
+  const quantity = numeric(value.serving_quantity);
+  const unit = nonEmptyString(value.serving_quantity_unit);
   const ref = { sourceId, recordId };
   const foodId = foodIdForRef(ref);
-  const grams = ['g', 'gram', 'grams'].includes(servingUnit.toLowerCase()) ? servingQuantity : undefined;
+  // The label keeps the product's own wording, including when that wording is a
+  // volume. "250 ml" on screen beside an assumed weight is the assumption made
+  // visible; rewriting it to "250 g" would hide it.
+  const label = nonEmptyString(value.serving_size)
+    ?? (quantity !== undefined && unit ? `${quantity} ${unit}` : `${Math.round(grams * 10) / 10} g`);
   return [{
     id: `${foodId}:serving` as FoodServingId,
     foodId,
-    label: nonEmptyString(value.serving_size) ?? `${servingQuantity} ${servingUnit}`,
+    label,
     quantity: 1,
-    unit: servingUnit,
-    ...(grams === undefined ? {} : { gramWeight: grams }),
+    unit: unit ?? 'g',
+    gramWeight: grams,
     isDefault: true,
   }];
 }

@@ -1,6 +1,6 @@
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useRef, useState } from 'react';
-import { RefreshControl, ScrollView, Text, View } from 'react-native';
+import { RefreshControl, ScrollView, Text } from 'react-native';
 
 import {
   buildMealTimelineEntries,
@@ -73,9 +73,9 @@ export function JournalScreen() {
       contentInsetAdjustmentBehavior="automatic"
       contentContainerStyle={{
         backgroundColor: colors.background,
-        gap: spacing.lg,
+        gap: spacing.md,
         padding: spacing.md,
-        paddingBottom: spacing.xxl,
+        paddingBottom: spacing.xxl + spacing.lg,
       }}
       refreshControl={(
         <RefreshControl
@@ -86,10 +86,14 @@ export function JournalScreen() {
       )}
       style={{ backgroundColor: colors.background }}
     >
-      <View style={{ gap: spacing.xs }}>
-        <Text accessibilityRole="header" allowFontScaling selectable style={[typography.largeTitle, { color: colors.textPrimary }]}>Journal</Text>
-        <Text allowFontScaling selectable style={[typography.body, { color: colors.textSecondary }]}>Your complete meal history, grouped by day.</Text>
-      </View>
+      <Text
+        accessibilityRole="header"
+        allowFontScaling
+        selectable
+        style={[typography.screenTitle, { color: colors.textPrimary, textTransform: 'uppercase' }]}
+      >
+        Journal
+      </Text>
 
       {loadMode === 'initial' && entries.length === 0 ? (
         <ScreenState title="Loading journal" message="Gathering your meal history…" />
@@ -136,7 +140,7 @@ export function JournalScreen() {
             accessibilityLiveRegion="polite"
             allowFontScaling
             selectable
-            style={[typography.caption, { color: colors.textSecondary, textAlign: 'center' }]}
+            style={[typography.tabLabel, { color: colors.textSecondary, textAlign: 'center' }]}
           >
             You’re all caught up.
           </Text>

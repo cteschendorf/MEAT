@@ -144,6 +144,8 @@ export default function ManualFoodScreen() {
   return (
     <ScrollView
       contentInsetAdjustmentBehavior="automatic"
+      automaticallyAdjustKeyboardInsets
+      keyboardDismissMode="on-drag"
       contentContainerStyle={{ padding: spacing.md, gap: spacing.md, backgroundColor: colors.background }}
       keyboardShouldPersistTaps="handled"
     >

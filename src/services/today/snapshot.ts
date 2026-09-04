@@ -1,3 +1,4 @@
+import { coreNutrientDisplayOrder } from '@/domain';
 import type { Food, Meal, NutrientValue, NutritionGoal } from '@/domain';
 import type { FoodRepository, GoalRepository, MealRepository } from '@/data';
 import { evaluateGoal, type GoalProgress } from '@/services/goals/engine';
@@ -7,13 +8,8 @@ import {
   scaleNutritionFacts,
 } from '@/services/nutrition/engine';
 
-export const todayMetricCodes = [
-  'energy-kcal',
-  'protein-g',
-  'carbohydrate-g',
-  'fat-g',
-  'fiber-g',
-] as const;
+/** Re-exported from the domain so every surface shares one ordering. */
+export const todayMetricCodes = coreNutrientDisplayOrder;
 
 export type TodayMetricCode = (typeof todayMetricCodes)[number];
 

@@ -105,33 +105,76 @@ function contrast(foreground: string, background: string): number {
   return ((lighter ?? 0) + 0.05) / ((darker ?? 0) + 0.05);
 }
 
-test('metric roles match the approved protein-first palette', () => {
-  assert.equal(lightColors.action, brandColors.primaryPlum);
-  assert.equal(lightColors.protein, '#4B2438');
-  assert.equal(lightColors.proteinAccent, '#F12A2F');
-  assert.equal(lightColors.calories, '#FF5A1F');
-  assert.equal(lightColors.caloriesAccent, '#FFB000');
-  assert.equal(lightColors.carbs, '#F2B400');
-  assert.equal(lightColors.fat, '#2457D6');
-  assert.equal(lightColors.fiber, '#00A66A');
+test('brand roles match the gold/monochrome Figma Make palette', () => {
+  assert.deepEqual(
+    {
+      background: brandColors.bg,
+      border: brandColors.border,
+      card: brandColors.cardDark,
+      elevated: brandColors.elevatedDark,
+      gold: brandColors.gold,
+      goldDeep: brandColors.goldDeep,
+      ink: brandColors.ink,
+      raised: brandColors.raisedDark,
+      surfaceDark: brandColors.surfaceDark,
+      warmBackground: brandColors.warmBackground,
+    },
+    {
+      background: '#080808',
+      border: '#2A2A2A',
+      card: '#191919',
+      elevated: '#222222',
+      gold: '#C8A45A',
+      goldDeep: '#8C6633',
+      ink: '#181410',
+      raised: '#333333',
+      surfaceDark: '#111111',
+      warmBackground: '#F5F1E8',
+    },
+  );
+
+  // One gold accent carries selection, action, and protein emphasis
+  // everywhere at once — the role TWA red used to play — in both schemes.
+  for (const colors of [lightColors, darkColors]) {
+    assert.equal(colors.action, colors.brand);
+    assert.equal(colors.protein, colors.action);
+    assert.equal(colors.proteinAccent, colors.action);
+    assert.equal(colors.caloriesAccent, colors.action);
+    // No dedicated light "parchment" panel in this concept: chrome text is
+    // just the ordinary primary text color, not a separate parchment ink.
+    assert.equal(colors.textOnChrome, colors.textPrimary);
+  }
+
+  assert.equal(lightColors.action, brandColors.goldDeep);
+  assert.equal(lightColors.background, brandColors.warmBackground);
+  assert.equal(lightColors.chrome, '#FFFFFF');
+  assert.equal(lightColors.textOnAction, '#FFFFFF');
+
+  assert.equal(darkColors.action, brandColors.gold);
+  assert.equal(darkColors.background, brandColors.bg);
+  assert.equal(darkColors.chrome, brandColors.surfaceDark);
+  // Gold sits mid-lightness against this near-black canvas, so its own
+  // buttons take dark text — the one field the palette swap flips the
+  // polarity of.
+  assert.equal(darkColors.textOnAction, brandColors.bg);
 });
 
-test('metric label colors retain WCAG AA contrast on neutral cards', () => {
-  for (const label of [
-    lightColors.caloriesLabel,
-    lightColors.carbsLabel,
-    lightColors.fatLabel,
-    lightColors.fiberLabel,
-  ]) {
-    assert.ok(contrast(label, lightColors.surface) >= 4.5);
-  }
-  for (const label of [
-    darkColors.caloriesLabel,
-    darkColors.carbsLabel,
-    darkColors.fatLabel,
-    darkColors.fiberLabel,
-  ]) {
-    assert.ok(contrast(label, darkColors.surface) >= 4.5);
+test('text retains WCAG AA contrast on every surface, chrome, and action fill', () => {
+  for (const colors of [lightColors, darkColors]) {
+    assert.ok(contrast(colors.textPrimary, colors.background) >= 4.5);
+    assert.ok(contrast(colors.textPrimary, colors.surface) >= 4.5);
+    assert.ok(contrast(colors.textSecondary, colors.surface) >= 4.5);
+    assert.ok(contrast(colors.textOnChrome, colors.chrome) >= 4.5);
+    assert.ok(contrast(colors.textSecondaryOnChrome, colors.chrome) >= 4.5);
+    assert.ok(contrast(colors.accentOnChrome, colors.chrome) >= 4.5);
+    assert.ok(contrast(colors.textOnAction, colors.action) >= 4.5);
+    // Destructive buttons stay a saturated red in both schemes and always
+    // pair with light text, unlike `textOnAction`, which flips polarity.
+    assert.ok(contrast(colors.textOnDestructive, colors.destructiveAction) >= 4.5);
+    assert.ok(contrast(colors.textOnDestructive, colors.destructiveActionPressed) >= 4.5);
+    // Non-text contrast: the energy progress bar's fill against its track.
+    assert.ok(contrast(colors.action, colors.surfaceMuted) >= 3);
+    assert.ok(contrast(colors.destructive, colors.surfaceMuted) >= 3);
   }
 });
 

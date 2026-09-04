@@ -16,14 +16,19 @@ export function ShellScreen({ title, children }: ShellScreenProps) {
     <ScrollView
       contentInsetAdjustmentBehavior="automatic"
       style={{ backgroundColor: colors.background }}
-      contentContainerStyle={{ flexGrow: 1, padding: spacing.xl, gap: spacing.lg }}
+      contentContainerStyle={{
+        flexGrow: 1,
+        paddingBottom: spacing.xxl,
+        paddingHorizontal: 20,
+        paddingTop: spacing.sm,
+      }}
     >
-      <View style={{ gap: spacing.sm }}>
+      <View style={{ gap: spacing.md }}>
         <Text
           accessibilityRole="header"
           allowFontScaling
           selectable
-          style={[typography.largeTitle, { color: colors.textPrimary }]}
+          style={[typography.screenTitle, { color: colors.textPrimary, textTransform: 'uppercase' }]}
         >
           {title}
         </Text>

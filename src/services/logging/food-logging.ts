@@ -2,6 +2,7 @@ import type { Food, Meal, NutrientDefinition, NutrientValue } from '@/domain';
 import { foodIdForRef } from '@/domain/food/source';
 import type { FoodServingId, ISODateTime, MealId, MealItemId, SourceRecordId } from '@/domain/shared/ids';
 import type { FoodRepository, MealRepository } from '@/data/repositories/contracts';
+import { portionWithGramWeight } from '@/services/meals/portion-selection';
 
 export interface ManualFoodInput {
   name: string;
@@ -120,7 +121,7 @@ export class FoodLoggingService {
   ): Promise<Meal> {
     requireFinitePositive(gramWeight, 'Portion must be a finite number greater than zero grams.');
     const items = meal.items.map((item) =>
-      item.id === itemId ? { ...item, portion: { ...item.portion, gramWeight } } : item,
+      item.id === itemId ? { ...item, portion: portionWithGramWeight(item.portion, gramWeight) } : item,
     );
     const updated = { ...meal, items, updatedAt: now };
     await this.meals.save(updated);

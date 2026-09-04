@@ -74,3 +74,21 @@ export interface PrivateDataRepository {
   exportJson(): Promise<string>;
   deleteAllPrivateData(): Promise<void>;
 }
+
+/**
+ * Durable storage for in-progress composer drafts. The payload is an opaque
+ * serialized session so the UI layer owns its own shape; persistence only
+ * needs an id and a timestamp.
+ */
+export interface ComposerDraftRecord {
+  readonly id: string;
+  readonly payload: string;
+  readonly updatedAt: string;
+}
+
+export interface ComposerDraftRepository {
+  list(): Promise<readonly ComposerDraftRecord[]>;
+  save(record: ComposerDraftRecord): Promise<void>;
+  delete(id: string): Promise<void>;
+  deleteAll(): Promise<void>;
+}

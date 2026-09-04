@@ -11,6 +11,7 @@ import {
   SqliteFoodRepository,
   SqliteGoalRepository,
   SqliteMealRepository,
+  SqliteComposerDraftRepository,
   SqliteMediaRepository,
   SqlitePrivateDataRepository,
   SqliteRecipeRepository,
@@ -43,6 +44,9 @@ import { MealHistoryService } from '@/services/meals/meal-history';
 import { PrivateDataLifecycleService } from '@/services/privacy/private-data-lifecycle';
 import { PrivateDataWriteCoordinator } from '@/services/privacy/private-data-write-coordinator';
 import { mealComposerSessions } from '@/ui/meal-composer-session';
+
+/** How long an unfinished draft and its staged photos survive across launches. */
+const DRAFT_RETENTION_MS = 24 * 60 * 60 * 1000;
 
 class UnavailableFoodProvider implements FoodProvider {
   readonly capabilities: FoodProviderCapabilities;
@@ -133,6 +137,7 @@ export function openAppServices(): Promise<AppServices> {
     const personalFoods = new SqliteFoodRepository(database);
     const meals = new SqliteMealRepository(database);
     const media = new SqliteMediaRepository(database);
+    const composerDrafts = new SqliteComposerDraftRepository(database);
     const mealPhotoFiles = new LocalMealPhotoStore();
     const privateDataRepository = new SqlitePrivateDataRepository(database);
     const transactions = new SqliteTransactionRunner(database);
@@ -194,20 +199,30 @@ export function openAppServices(): Promise<AppServices> {
       mealPhotoFiles,
       transactions,
     );
+    // Drafts and their staged photos are retained across restarts for a day;
+    // past that a draft is stale enough that resuming it would surprise the user.
     const cleanupNow = new Date();
-    const cleanupCutoff = cleanupNow.toISOString() as ISODateTime;
+    // Restore drafts before cleanup so a resumed meal's staged photos are not
+    // treated as orphans on the very launch that brings the draft back.
+    await mealComposerSessions.attach(composerDrafts);
+
     try {
       const retainedMedia = await media.list(2_147_483_647);
+      // Composer drafts now survive a restart (THI-305), so staged photo files
+      // must outlive the launch that follows one. Anything older than the draft
+      // retention window belongs to a draft no composer will resume.
       mealPhotoFiles.cleanup({
         attachedUris: new Set(retainedMedia.map((asset) => asset.uri)),
         now: cleanupNow.getTime(),
-        draftMaxAgeMs: 0,
-        orphanGraceMs: 0,
+        draftMaxAgeMs: DRAFT_RETENTION_MS,
+        orphanGraceMs: DRAFT_RETENTION_MS,
       });
-      // Composer drafts and the ten-second Undo token are session-local. After
-      // a restart no UI can resume them, so every unattached row/file is an
-      // orphan and can be finalized immediately instead of lingering 24 hours.
-      await mealHistory.cleanupUnattached(cleanupCutoff, 2_147_483_647);
+      // The ten-second Undo token is still session-local, but unattached media
+      // may belong to a restored draft, so only finalize rows past that window.
+      await mealHistory.cleanupUnattached(
+        new Date(cleanupNow.getTime() - DRAFT_RETENTION_MS).toISOString() as ISODateTime,
+        2_147_483_647,
+      );
     } catch {
       // Cleanup is retryable and must not make otherwise-valid private history unavailable.
     }

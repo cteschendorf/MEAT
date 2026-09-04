@@ -4,7 +4,12 @@ import { readFile } from 'node:fs/promises';
 import { DatabaseSync } from 'node:sqlite';
 import test from 'node:test';
 
-import { UsdaCoreFoodProvider, type UsdaCoreDatabase } from '../src/data/food-data/usda-core';
+import {
+  UsdaCoreFoodProvider,
+  ftsQuery,
+  singularStem,
+  type UsdaCoreDatabase,
+} from '../src/data/food-data/usda-core';
 import type { SourceRecordId } from '../src/domain/shared/ids';
 
 const databaseUrl = new URL('../assets/usda/meat-usda-core.sqlite', import.meta.url);
@@ -88,5 +93,58 @@ test('USDA Core phrase terms are escaped and no branded rows exist', async () =>
     .prepare("SELECT COUNT(*) AS count FROM foods WHERE lower(data_type) = 'branded'")
     .get() as { count: number };
   assert.equal(branded.count, 0);
+  database.close();
+});
+
+test('singular stems are derived only for plausible plurals', () => {
+  assert.equal(singularStem('breasts'), 'breast');
+  assert.equal(singularStem('eggs'), 'egg');
+  assert.equal(singularStem('berries'), 'berry');
+  assert.equal(singularStem('peaches'), 'peach');
+  assert.equal(singularStem('tomatoes'), 'tomato');
+
+  // Not plurals, and too short to risk stemming.
+  assert.equal(singularStem('grass'), null);
+  assert.equal(singularStem('swiss'), null);
+  assert.equal(singularStem('chicken'), null);
+  assert.equal(singularStem('as'), null);
+  assert.equal(singularStem('oil'), null);
+});
+
+test('plural terms search their singular stem alongside themselves', () => {
+  assert.equal(ftsQuery('breasts'), '("breasts"* OR "breast"*)');
+  assert.equal(ftsQuery('chicken breasts'), '"chicken"* AND ("breasts"* OR "breast"*)');
+  // Non-plural terms keep the original single-prefix shape.
+  assert.equal(ftsQuery('chicken breast'), '"chicken"* AND "breast"*');
+  // Quotes stay escaped inside every branch.
+  assert.equal(ftsQuery('"milk"'), '"""milk"""*');
+});
+
+test('plural queries return the same foods as their singular form', async () => {
+  const database = new DatabaseSync(databaseUrl.pathname, { readOnly: true });
+  const provider = new UsdaCoreFoodProvider(providerDatabase(database));
+
+  // Each of these returned zero results before plural stemming (THI-321).
+  for (const [plural, singular] of [
+    ['chicken breasts', 'chicken breast'],
+    ['egg whites', 'egg white'],
+    ['scrambled eggs', 'scrambled egg'],
+  ] as const) {
+    const pluralGroup = await provider.search(plural);
+    const singularGroup = await provider.search(singular);
+    assert.equal(pluralGroup.state, 'ready', `${plural} should return results`);
+    assert.equal(singularGroup.state, 'ready', `${singular} should return results`);
+
+    const pluralIds = new Set(
+      pluralGroup.state === 'ready' ? pluralGroup.candidates.map((entry) => entry.food.id) : [],
+    );
+    const singularIds =
+      singularGroup.state === 'ready' ? singularGroup.candidates.map((entry) => entry.food.id) : [];
+    assert.ok(
+      singularIds.every((id) => pluralIds.has(id)),
+      `${plural} should find everything ${singular} finds`,
+    );
+  }
+
   database.close();
 });

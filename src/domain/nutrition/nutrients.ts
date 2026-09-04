@@ -1,11 +1,22 @@
 import type { SourceRecordId } from '@/domain/shared/ids';
 
-export type CoreNutrientCode =
-  | 'energy-kcal'
-  | 'protein-g'
-  | 'carbohydrate-g'
-  | 'fat-g'
-  | 'fiber-g';
+/**
+ * Canonical display order for the five core metrics: protein first, because the
+ * product is protein-first. Every surface that renders metrics — search rows,
+ * composer item rows, meal detail, the dashboard — renders in this order.
+ *
+ * This array is the single source of truth: `CoreNutrientCode` is derived from
+ * it, so a code cannot exist without a defined position.
+ */
+export const coreNutrientDisplayOrder = [
+  'protein-g',
+  'energy-kcal',
+  'carbohydrate-g',
+  'fat-g',
+  'fiber-g',
+] as const;
+
+export type CoreNutrientCode = (typeof coreNutrientDisplayOrder)[number];
 
 export type NutrientCode = CoreNutrientCode | (string & {});
 

@@ -688,8 +688,12 @@ test('migration 11 preserves build-1 meals and provides ordered, private media p
   const node = new DatabaseSync(':memory:');
   const db = expoDatabase(node);
   await migrateDatabase(db);
-  assert.equal(latestMigrationVersion, 11);
-  node.exec('DELETE FROM schema_migrations WHERE version = 11; DROP TABLE media_assets;');
+  // This test replays migration 11 specifically; it must stay valid as later
+  // migrations are added, so assert 11 exists rather than that it is the last.
+  assert.ok(latestMigrationVersion >= 11);
+  // migrateDatabase resumes from MAX(version), so rewinding to "before 11"
+  // means clearing 11 and everything after it, not just the row for 11.
+  node.exec('DELETE FROM schema_migrations WHERE version >= 11; DROP TABLE media_assets;');
   const legacy = meal('meal:build-1', createdAt);
   node.prepare('INSERT INTO meals (id, occurred_at, payload, updated_at) VALUES (?, ?, ?, ?)')
     .run(legacy.id, legacy.occurredAt, JSON.stringify(legacy), legacy.updatedAt);

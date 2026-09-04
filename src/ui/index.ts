@@ -8,5 +8,5 @@ export { Surface } from '@/ui/components/surface';
 export { ShellScreen } from '@/ui/shell-screen';
 export * from '@/ui/nutrition-dashboard-model';
 export { brandColors, darkColors, lightColors, type ThemeColors } from '@/ui/theme/colors';
-export { iconSizes, minimumTouchTarget, radii, spacing, typography } from '@/ui/theme/tokens';
+export { fontFamilies, iconSizes, minimumTouchTarget, radii, spacing, typography } from '@/ui/theme/tokens';
 export { useThemeColors } from '@/ui/theme/use-theme';

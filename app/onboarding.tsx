@@ -2,7 +2,13 @@ import { useRouter } from 'expo-router';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { ScrollView, Text, TextInput, View } from 'react-native';
 
-import type { CoreNutrientCode, GoalMode, ISODateTime, UserPreferences } from '@/domain';
+import type {
+  CoreNutrientCode,
+  GoalMode,
+  ISODateTime,
+  MassUnitPreference,
+  UserPreferences,
+} from '@/domain';
 import { openMeatDatabase, SqliteGoalRepository, SqliteUserPreferencesRepository } from '@/data';
 import {
   defaultUserPreferences,
@@ -19,6 +25,11 @@ interface GoalDraft {
   minimum: string;
   maximum: string;
 }
+
+const massUnitOptions: readonly { value: MassUnitPreference; label: string }[] = [
+  { value: 'g', label: 'Grams' },
+  { value: 'oz', label: 'Ounces' },
+];
 
 const goalModes: readonly GoalMode[] = ['none', 'minimum', 'maximum', 'range'];
 const modeLabel: Record<GoalMode, string> = {
@@ -71,10 +82,10 @@ export default function OnboardingScreen() {
         const loaded = await setupService.load(now);
         if (!active) return;
         setService(setupService);
-        // Batch 3 accepts food quantities in grams throughout. Normalize any
-        // earlier local draft preference so setup cannot promise an ounce UI
-        // that the logging screens do not yet provide.
-        setPreferences({ ...loaded.preferences, massUnit: 'g' });
+        // The preference used to be pinned to grams here, because no logging
+        // screen could honour anything else. The food detail sheet now can, so
+        // what the user chose is what they get (THI-317).
+        setPreferences(loaded.preferences);
         setDrafts(draftsFromInputs(loaded.goals));
         setEditingExisting(loaded.onboardingComplete);
       })
@@ -163,6 +174,8 @@ export default function OnboardingScreen() {
     return (
       <ScrollView
         contentInsetAdjustmentBehavior="automatic"
+        automaticallyAdjustKeyboardInsets
+        keyboardDismissMode="on-drag"
         contentContainerStyle={{ padding: spacing.md, backgroundColor: colors.background }}
         style={{ backgroundColor: colors.background }}
       >
@@ -181,6 +194,8 @@ export default function OnboardingScreen() {
   return (
     <ScrollView
       contentInsetAdjustmentBehavior="automatic"
+      automaticallyAdjustKeyboardInsets
+      keyboardDismissMode="on-drag"
       keyboardShouldPersistTaps="handled"
       contentContainerStyle={{ padding: spacing.md, gap: spacing.md, backgroundColor: colors.background }}
     >
@@ -195,7 +210,22 @@ export default function OnboardingScreen() {
 
       <Surface>
         <Text accessibilityRole="header" allowFontScaling style={[typography.title3, { color: colors.textPrimary }]}>Logging units</Text>
-        <Text allowFontScaling style={[typography.body, { color: colors.textSecondary }]}>This candidate enters food quantities in grams. Ounce entry is not enabled yet.</Text>
+        <Text allowFontScaling style={[typography.body, { color: colors.textSecondary }]}>
+          Which unit a typed amount starts in. A food&apos;s own servings are always offered too, and
+          volume units appear on foods whose data says what they weigh.
+        </Text>
+        <View style={{ flexDirection: 'row', gap: spacing.xs }}>
+          {massUnitOptions.map((option) => (
+            <ActionButton
+              key={option.value}
+              label={option.label}
+              tone={preferences.massUnit === option.value ? 'primary' : 'secondary'}
+              disabled={saving}
+              style={{ flex: 1 }}
+              onPress={() => setPreferences((current) => ({ ...current, massUnit: option.value }))}
+            />
+          ))}
+        </View>
       </Surface>
 
       <View style={{ gap: spacing.sm }}>

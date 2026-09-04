@@ -20,7 +20,7 @@ export function BrandLockup({ accessibilityLabel = 'MEAT', markSize = 36, style,
       style={[{ alignItems: 'center', flexDirection: 'row', gap: spacing.xs }, style]}
     >
       <BrandMark decorative size={markSize} />
-      <Text allowFontScaling style={[typography.wordmark, { color: colors.brand }]}>MEAT</Text>
+      <Text allowFontScaling style={[typography.wordmark, { color: colors.textOnChrome }]}>MEAT</Text>
     </View>
   );
 }

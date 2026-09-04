@@ -511,6 +511,8 @@ export default function MealsRecipesScreen() {
   return (
     <ScrollView
       contentInsetAdjustmentBehavior="automatic"
+      automaticallyAdjustKeyboardInsets
+      keyboardDismissMode="on-drag"
       keyboardShouldPersistTaps="handled"
       contentContainerStyle={{ padding: spacing.md, gap: spacing.md, backgroundColor: colors.background }}
     >

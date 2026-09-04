@@ -48,62 +48,85 @@ function TimelineCard({ entry, onPress }: TimelineCardProps) {
     <Surface
       accessible={!onPress}
       accessibilityLabel={!onPress ? timelineAccessibilityLabel(entry) : undefined}
-      style={{ flex: 1, gap: spacing.sm, padding: spacing.md }}
+      style={{
+        borderRadius: radii.card,
+        gap: 0,
+        minHeight: 72,
+        overflow: 'hidden',
+        padding: 0,
+        width: '100%',
+      }}
     >
-      <Text
-        allowFontScaling
-        selectable
-        style={[typography.caption, { color: colors.action, fontVariant: ['tabular-nums'], fontWeight: '600' }]}
-      >
-        {timelineTime(entry.occurredAt)}
-      </Text>
-      <View style={{ alignItems: 'flex-start', flexDirection: 'row', gap: spacing.sm }}>
-        <View style={{ flex: 1, gap: spacing.xs }}>
-          <Text allowFontScaling selectable style={[typography.bodyStrong, { color: colors.textPrimary }] }>
-            {entry.foodSummary}
-          </Text>
-          {entry.mealTitle ? (
-            <View
-              style={{
-                alignSelf: 'flex-start',
-                backgroundColor: colors.surfaceMuted,
-                borderCurve: 'continuous',
-                borderRadius: radii.capsule,
-                paddingHorizontal: spacing.sm,
-                paddingVertical: spacing.xxs,
-              }}
-            >
-              <Text allowFontScaling selectable style={[typography.caption, { color: colors.textPrimary }] }>
-                {entry.mealTitle}
-              </Text>
-            </View>
-          ) : null}
-          {entry.locationLabel ? (
-            <Text allowFontScaling selectable style={[typography.caption, { color: colors.textSecondary }] }>
-              At {entry.locationLabel}
-            </Text>
-          ) : null}
-          <Text allowFontScaling selectable style={[typography.caption, { color: colors.textSecondary }] }>
-            {itemDetail(entry)}
-          </Text>
-        </View>
+      <View style={{ alignItems: 'stretch', flex: 1, flexDirection: 'row' }}>
         {entry.thumbnailUri ? (
           <Image
             accessible
             accessibilityLabel={`Photo for ${entry.foodSummary}`}
             contentFit="cover"
             source={{ uri: entry.thumbnailUri }}
-            style={{ borderRadius: radii.sm, height: 76, width: 76 }}
+            style={{ backgroundColor: colors.surfaceElevated, height: 72, width: 72 }}
           />
         ) : null}
-        {onPress ? (
-          <Image
-            accessibilityIgnoresInvertColors
-            contentFit="contain"
-            source="sf:chevron.right"
-            style={{ alignSelf: 'center', height: 16, tintColor: colors.textSecondary, width: 10 }}
-          />
-        ) : null}
+        <View
+          style={{
+            flex: 1,
+            gap: 2,
+            justifyContent: 'center',
+            minWidth: 0,
+            paddingHorizontal: 14,
+            paddingVertical: spacing.xs,
+          }}
+        >
+          <Text
+            allowFontScaling
+            numberOfLines={2}
+            selectable
+            style={[typography.bodyStrong, { color: colors.textPrimary }]}
+          >
+            {entry.foodSummary}
+          </Text>
+          {entry.mealTitle || entry.locationLabel ? (
+            <View style={{ alignItems: 'center', flexDirection: 'row', gap: spacing.xs, minWidth: 0 }}>
+              {entry.mealTitle ? (
+                <Text
+                  allowFontScaling
+                  numberOfLines={1}
+                  selectable
+                  style={[typography.caption, { color: colors.textSecondary, flexShrink: 1 }]}
+                >
+                  {entry.mealTitle}
+                </Text>
+              ) : null}
+              {entry.locationLabel ? (
+                <Text
+                  allowFontScaling
+                  numberOfLines={1}
+                  selectable
+                  style={[typography.caption, { color: colors.textSecondary, flexShrink: 1 }]}
+                >
+                  At {entry.locationLabel}
+                </Text>
+              ) : null}
+            </View>
+          ) : null}
+          <View style={{ alignItems: 'baseline', flexDirection: 'row', gap: spacing.sm, justifyContent: 'space-between' }}>
+            <Text
+              allowFontScaling
+              numberOfLines={1}
+              selectable
+              style={[typography.caption, { color: colors.textSecondary, flex: 1 }]}
+            >
+              {itemDetail(entry)}
+            </Text>
+            <Text
+              allowFontScaling
+              selectable
+              style={[typography.caption, { color: colors.textSecondary, fontVariant: ['tabular-nums'] }]}
+            >
+              {timelineTime(entry.occurredAt)}
+            </Text>
+          </View>
+        </View>
       </View>
     </Surface>
   );
@@ -116,7 +139,7 @@ function TimelineCard({ entry, onPress }: TimelineCardProps) {
       accessibilityLabel={timelineAccessibilityLabel(entry)}
       accessibilityRole="button"
       onPress={() => onPress(entry)}
-      style={({ pressed }) => ({ flex: 1, opacity: pressed ? 0.72 : 1 })}
+      style={({ pressed }) => ({ opacity: pressed ? 0.72 : 1, width: '100%' })}
     >
       {card}
     </Pressable>
@@ -131,43 +154,26 @@ interface TimelineSectionViewProps {
 function TimelineSectionView({ onPressEntry, section }: TimelineSectionViewProps) {
   const colors = useThemeColors();
   return (
-    <View style={{ gap: spacing.sm }}>
+    <View style={{ gap: spacing.xs }}>
       {section.dayKey ? (
-        <Text accessibilityRole="header" allowFontScaling selectable style={[typography.title3, { color: colors.textPrimary }] }>
-          {timelineDayHeading(section.dayKey)}
-        </Text>
+        <View style={{ alignItems: 'center', flexDirection: 'row', gap: spacing.sm, justifyContent: 'space-between' }}>
+          <Text
+            accessibilityRole="header"
+            allowFontScaling
+            selectable
+            style={[typography.overline, { color: colors.textSecondary, flex: 1 }]}
+          >
+            · {timelineDayHeading(section.dayKey)}
+          </Text>
+          <Text allowFontScaling selectable style={[typography.tabLabel, { color: colors.textSecondary }] }>
+            {section.entries.length} {section.entries.length === 1 ? 'meal' : 'meals'}
+          </Text>
+        </View>
       ) : null}
-      <View>
-        {section.entries.map((entry, index) => {
-          const first = index === 0;
-          const last = index === section.entries.length - 1;
-          return (
-            <View key={entry.id} style={{ flexDirection: 'row', gap: spacing.sm, paddingBottom: last ? 0 : spacing.md }}>
-              <View accessible={false} style={{ position: 'relative', width: 20 }}>
-                {!first ? (
-                  <View style={{ backgroundColor: colors.border, height: 23, left: 9, position: 'absolute', top: 0, width: 2 }} />
-                ) : null}
-                {!last ? (
-                  <View style={{ backgroundColor: colors.border, bottom: -spacing.md, left: 9, position: 'absolute', top: 23, width: 2 }} />
-                ) : null}
-                <View
-                  style={{
-                    backgroundColor: colors.action,
-                    borderColor: colors.background,
-                    borderRadius: radii.capsule,
-                    borderWidth: 3,
-                    height: 14,
-                    left: 3,
-                    position: 'absolute',
-                    top: 17,
-                    width: 14,
-                  }}
-                />
-              </View>
-              <TimelineCard entry={entry} onPress={onPressEntry} />
-            </View>
-          );
-        })}
+      <View style={{ gap: spacing.xs }}>
+        {section.entries.map((entry) => (
+          <TimelineCard entry={entry} key={entry.id} onPress={onPressEntry} />
+        ))}
       </View>
     </View>
   );
@@ -185,7 +191,7 @@ export function MealTimeline({ entries, onPressEntry, showDayHeadings = true }: 
     : [{ dayKey: '', entries: [...entries].sort(compareTimelineEntriesChronologically) }];
 
   return (
-    <View accessibilityLabel="Meal timeline" style={{ gap: spacing.lg }}>
+    <View accessibilityLabel="Meal timeline" style={{ gap: spacing.md }}>
       {sections.map((section) => (
         <TimelineSectionView key={section.dayKey || 'timeline'} onPressEntry={onPressEntry} section={section} />
       ))}

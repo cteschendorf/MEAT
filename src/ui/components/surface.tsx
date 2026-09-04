@@ -10,8 +10,11 @@ export type SurfaceProps = PropsWithChildren<ViewProps> & {
 
 export function Surface({ children, tone = 'default', style, ...props }: SurfaceProps) {
   const colors = useThemeColors();
-  const backgroundColor =
-    tone === 'muted' ? colors.surfaceMuted : tone === 'elevated' ? colors.surfaceElevated : colors.surface;
+  const backgroundColor = tone === 'muted'
+    ? colors.surfaceMuted
+    : tone === 'elevated'
+      ? colors.surfaceElevated
+      : colors.surface;
 
   return (
     <View
@@ -21,9 +24,9 @@ export function Surface({ children, tone = 'default', style, ...props }: Surface
           backgroundColor,
           borderColor: colors.border,
           borderCurve: 'continuous',
-          borderRadius: radii.md,
+          borderRadius: radii.card,
           borderWidth: 1,
-          boxShadow: tone === 'elevated' ? `0 6px 20px ${colors.shadow}` : undefined,
+          boxShadow: tone === 'elevated' ? `0 4px 14px ${colors.shadow}` : undefined,
           gap: spacing.sm,
           padding: spacing.md,
         },

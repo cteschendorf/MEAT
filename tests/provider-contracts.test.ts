@@ -82,6 +82,65 @@ function offProduct(code = '3017620422003') {
   };
 }
 
+test('a package serving stated in ounces is kept, not discarded for 100 g', async () => {
+  // Only a literal "g" used to be recognised, so every serving expressed in
+  // ounces lost its gram weight, was filtered out of the portion list, and the
+  // food fell back to a synthesized 100 g that nobody weighs out.
+  const provider = new OpenFoodFactsProvider({
+    cache: new MemoryProviderCache(),
+    clock: () => new Date(START),
+    fetch: async () => json({
+      status: 'success',
+      product: {
+        ...offProduct('0044000032029'),
+        serving_size: '1 oz (28 g)',
+        serving_quantity: '1',
+        serving_quantity_unit: 'oz',
+      },
+    }),
+  });
+
+  const result = await provider.lookupBarcode('0044000032029');
+  const serving = result.candidate?.portions.find((portion) => portion.isDefault);
+  assert.ok(serving, 'the package serving survives');
+  // One avoirdupois ounce is exactly 28.349523125 g.
+  assert.ok(Math.abs((serving.gramWeight ?? 0) - 28.349523125) < 1e-9);
+});
+
+test('a serving stated only in millilitres is weighed at 1 g/ml, and keeps saying millilitres', async () => {
+  // This test asserted the opposite until 2 Sep: a volume serving carried no
+  // weight, because grams from millilitres needs a density and inventing one is
+  // the volumetric equivalent of reading a missing nutrient as zero.
+  //
+  // Charles overruled that for Open Food Facts specifically, and the reason is
+  // worth recording: refusing did not leave the user with nothing, it left them
+  // with a synthesized 100 g, which is not closer to the truth for any product
+  // at all. 1 g/ml is exact for water and within a few percent of every soft
+  // drink and juice — the things actually labelled in millilitres. A
+  // density-aware conversion is THI-339.
+  //
+  // The assumption stays visible: the label still reads "250 ml", so nothing on
+  // screen claims the manufacturer said 250 g.
+  const provider = new OpenFoodFactsProvider({
+    cache: new MemoryProviderCache(),
+    clock: () => new Date(START),
+    fetch: async () => json({
+      status: 'success',
+      product: {
+        ...offProduct('5449000000996'),
+        serving_size: '250 ml',
+        serving_quantity: '250',
+        serving_quantity_unit: 'ml',
+      },
+    }),
+  });
+
+  const result = await provider.lookupBarcode('5449000000996');
+  const serving = result.candidate?.portions.find((portion) => portion.label === '250 ml');
+  assert.ok(serving, 'the serving is still described in the product\'s own words');
+  assert.equal(serving.gramWeight, 250);
+});
+
 test('stable refs generate reversible provider-scoped food IDs', () => {
   const id = foodIdForRef({ sourceId: 'open-food-facts', recordId: '123/45' as SourceRecordId });
   assert.equal(id, 'open-food-facts:123%2F45');
