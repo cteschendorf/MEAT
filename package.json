@@ -71,6 +71,9 @@
     "testMatch": [
       "<rootDir>/tests/**/*.component.test.ts",
       "<rootDir>/tests/**/*.component.test.tsx"
+    ],
+    "setupFiles": [
+      "<rootDir>/tests/setup/safe-area-context.ts"
     ]
   }
 }
