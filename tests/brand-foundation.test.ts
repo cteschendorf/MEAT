@@ -105,68 +105,77 @@ function contrast(foreground: string, background: string): number {
   return ((lighter ?? 0) + 0.05) / ((darker ?? 0) + 0.05);
 }
 
-test('brand roles match the approved Version 4 TWA palette', () => {
+test('brand roles match the gold/monochrome Figma Make palette', () => {
   assert.deepEqual(
     {
+      background: brandColors.bg,
+      border: brandColors.border,
       card: brandColors.cardDark,
-      darkBackground: brandColors.travertineDark,
-      darkSurface: brandColors.chrome,
-      darkText: brandColors.warmText,
-      onParchment: brandColors.ink,
-      onParchmentMuted: brandColors.inkSecondary,
-      parchment: brandColors.parchment,
-      parchmentBorder: brandColors.parchmentBorder,
-      parchmentMuted: brandColors.parchmentMuted,
-      twaRed: brandColors.twaRed,
-      warmBorder: brandColors.warmBorder,
+      elevated: brandColors.elevatedDark,
+      gold: brandColors.gold,
+      goldDeep: brandColors.goldDeep,
+      ink: brandColors.ink,
+      raised: brandColors.raisedDark,
+      surfaceDark: brandColors.surfaceDark,
+      warmBackground: brandColors.warmBackground,
     },
     {
-      card: '#201C13',
-      darkBackground: '#100D08',
-      darkSurface: '#181410',
-      darkText: '#E8DFC8',
-      onParchment: '#1A1510',
-      onParchmentMuted: '#5A4E3A',
-      parchment: '#F0E8D5',
-      parchmentBorder: '#C8BDA8',
-      parchmentMuted: '#E2D9C4',
-      twaRed: '#C8201A',
-      warmBorder: '#2E2618',
+      background: '#080808',
+      border: '#2A2A2A',
+      card: '#191919',
+      elevated: '#222222',
+      gold: '#C8A45A',
+      goldDeep: '#8C6633',
+      ink: '#181410',
+      raised: '#333333',
+      surfaceDark: '#111111',
+      warmBackground: '#F5F1E8',
     },
   );
 
+  // One gold accent carries selection, action, and protein emphasis
+  // everywhere at once — the role TWA red used to play — in both schemes.
   for (const colors of [lightColors, darkColors]) {
-    assert.equal(colors.action, brandColors.twaRed);
-    assert.equal(colors.accentOnChrome, '#E85A50');
-    assert.equal(colors.chrome, brandColors.chrome);
-    assert.equal(colors.macroStrip, brandColors.cardDark);
-    assert.equal(colors.textOnChrome, brandColors.warmText);
-    assert.equal(colors.parchment, brandColors.parchment);
-    assert.equal(colors.parchmentMuted, brandColors.parchmentMuted);
-    assert.equal(colors.parchmentBorder, brandColors.parchmentBorder);
-    assert.equal(colors.textOnParchment, brandColors.ink);
-    assert.equal(colors.textSecondaryOnParchment, brandColors.inkSecondary);
+    assert.equal(colors.action, colors.brand);
+    assert.equal(colors.protein, colors.action);
+    assert.equal(colors.proteinAccent, colors.action);
+    assert.equal(colors.caloriesAccent, colors.action);
+    // No dedicated light "parchment" panel in this concept: chrome text is
+    // just the ordinary primary text color, not a separate parchment ink.
+    assert.equal(colors.textOnChrome, colors.textPrimary);
   }
 
-  assert.equal(darkColors.background, brandColors.travertineDark);
-  assert.equal(darkColors.surface, brandColors.cardDark);
-  assert.equal(darkColors.border, brandColors.warmBorder);
-  assert.equal(lightColors.protein, brandColors.twaRed);
+  assert.equal(lightColors.action, brandColors.goldDeep);
+  assert.equal(lightColors.background, brandColors.warmBackground);
+  assert.equal(lightColors.chrome, '#FFFFFF');
+  assert.equal(lightColors.textOnAction, '#FFFFFF');
+
+  assert.equal(darkColors.action, brandColors.gold);
+  assert.equal(darkColors.background, brandColors.bg);
+  assert.equal(darkColors.chrome, brandColors.surfaceDark);
+  // Gold sits mid-lightness against this near-black canvas, so its own
+  // buttons take dark text — the one field the palette swap flips the
+  // polarity of.
+  assert.equal(darkColors.textOnAction, brandColors.bg);
 });
 
-test('compound-card text retains WCAG AA contrast on parchment and dark chrome', () => {
+test('text retains WCAG AA contrast on every surface, chrome, and action fill', () => {
   for (const colors of [lightColors, darkColors]) {
-    assert.ok(contrast(colors.textOnParchment, colors.parchment) >= 4.5);
-    assert.ok(contrast(colors.textSecondaryOnParchment, colors.parchment) >= 4.5);
+    assert.ok(contrast(colors.textPrimary, colors.background) >= 4.5);
+    assert.ok(contrast(colors.textPrimary, colors.surface) >= 4.5);
+    assert.ok(contrast(colors.textSecondary, colors.surface) >= 4.5);
     assert.ok(contrast(colors.textOnChrome, colors.chrome) >= 4.5);
     assert.ok(contrast(colors.textSecondaryOnChrome, colors.chrome) >= 4.5);
     assert.ok(contrast(colors.accentOnChrome, colors.chrome) >= 4.5);
-    assert.ok(contrast(colors.textOnAction, colors.destructiveAction) >= 4.5);
-    assert.ok(contrast(colors.textOnAction, colors.destructiveActionPressed) >= 4.5);
-    assert.ok(contrast(colors.energyProgressOnParchment, colors.parchmentMuted) >= 3);
-    assert.ok(contrast(colors.energyProgressOverOnParchment, colors.parchmentMuted) >= 3);
+    assert.ok(contrast(colors.textOnAction, colors.action) >= 4.5);
+    // Destructive buttons stay a saturated red in both schemes and always
+    // pair with light text, unlike `textOnAction`, which flips polarity.
+    assert.ok(contrast(colors.textOnDestructive, colors.destructiveAction) >= 4.5);
+    assert.ok(contrast(colors.textOnDestructive, colors.destructiveActionPressed) >= 4.5);
+    // Non-text contrast: the energy progress bar's fill against its track.
+    assert.ok(contrast(colors.action, colors.surfaceMuted) >= 3);
+    assert.ok(contrast(colors.destructive, colors.surfaceMuted) >= 3);
   }
-  assert.ok(contrast(brandColors.twaRed, brandColors.parchment) >= 4.5);
 });
 
 test('production icon exports are square, opaque 1024px RGB files', () => {

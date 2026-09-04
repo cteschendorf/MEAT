@@ -5,7 +5,7 @@ import { radii, spacing } from '@/ui/theme/tokens';
 import { useThemeColors } from '@/ui/theme/use-theme';
 
 export type SurfaceProps = PropsWithChildren<ViewProps> & {
-  tone?: 'default' | 'muted' | 'elevated' | 'parchment';
+  tone?: 'default' | 'muted' | 'elevated';
 };
 
 export function Surface({ children, tone = 'default', style, ...props }: SurfaceProps) {
@@ -14,9 +14,7 @@ export function Surface({ children, tone = 'default', style, ...props }: Surface
     ? colors.surfaceMuted
     : tone === 'elevated'
       ? colors.surfaceElevated
-      : tone === 'parchment'
-        ? colors.parchment
-        : colors.surface;
+      : colors.surface;
 
   return (
     <View
@@ -24,7 +22,7 @@ export function Surface({ children, tone = 'default', style, ...props }: Surface
       style={[
         {
           backgroundColor,
-          borderColor: tone === 'parchment' ? colors.parchmentBorder : colors.border,
+          borderColor: colors.border,
           borderCurve: 'continuous',
           borderRadius: radii.card,
           borderWidth: 1,

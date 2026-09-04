@@ -12,7 +12,11 @@ export interface ActionButtonProps extends Omit<PressableProps, 'children'> {
 
 export function ActionButton({ label, icon, tone = 'primary', disabled, style, ...props }: ActionButtonProps) {
   const colors = useThemeColors();
-  const textColor = tone === 'secondary' ? colors.textPrimary : colors.textOnAction;
+  const textColor = tone === 'secondary'
+    ? colors.textPrimary
+    : tone === 'destructive'
+      ? colors.textOnDestructive
+      : colors.textOnAction;
 
   return (
     <Pressable
