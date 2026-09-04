@@ -41,8 +41,10 @@ describe('branded nutrition dashboard', () => {
     expect(dashboard.getByLabelText('Fat, 62 g. No goal set')).toBeTruthy();
     expect(dashboard.getByLabelText('Fiber, 28 g. No goal set')).toBeTruthy();
     expect(dashboard.getByText('Energy · today')).toBeTruthy();
-    expect(dashboard.getAllByText(/protein/i)).toHaveLength(1);
-    expect(dashboard.getAllByText(/protein/i, { includeHiddenElements: true })).toHaveLength(2);
+    // Protein leads the hero and is not repeated in the compact strip below —
+    // unlike the old parchment layout, this concept has no macro-strip
+    // duplicate of it to hide from accessibility, hidden or otherwise.
+    expect(dashboard.getAllByText(/protein/i, { includeHiddenElements: true })).toHaveLength(1);
     expect(dashboard.getByText('Fiber')).toBeTruthy();
     expect(dashboard.getByText('Carbs')).toBeTruthy();
     expect(dashboard.getByText('Fat')).toBeTruthy();

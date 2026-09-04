@@ -43,6 +43,16 @@ function MetricValue({
   );
 }
 
+/**
+ * Calories and protein, in one dark card rather than a light panel.
+ *
+ * The earlier "Version 4" system gave this its own parchment-toned surface —
+ * a deliberate light moment inside an otherwise dark app. This concept has no
+ * such moment anywhere: one gold accent, one dark ladder of surfaces, and the
+ * hero card is simply the lightest step in that ladder (`surfaceElevated`),
+ * the same way the Figma concept's own hero nutrition card is just `T.card`
+ * on `T.bg`, not a light panel.
+ */
 function EnergyHero({ calories, protein }: { readonly calories: TodayMetric; readonly protein: TodayMetric }) {
   const colors = useThemeColors();
   const { fontScale, width } = useWindowDimensions();
@@ -54,13 +64,12 @@ function EnergyHero({ calories, protein }: { readonly calories: TodayMetric; rea
   return (
     <View
       style={{
-        backgroundColor: colors.parchment,
         gap: spacing.md,
         paddingHorizontal: 20,
         paddingVertical: 18,
       }}
     >
-      <Text allowFontScaling selectable style={[typography.overline, { color: colors.textSecondaryOnParchment }] }>
+      <Text allowFontScaling selectable style={[typography.overline, { color: colors.textSecondary }]}>
         Energy · today
       </Text>
 
@@ -78,29 +87,31 @@ function EnergyHero({ calories, protein }: { readonly calories: TodayMetric; rea
           style={{ flex: 1, gap: spacing.xxs }}
         >
           <MetricValue
-            color={colors.textOnParchment}
+            color={colors.textPrimary}
             hero
             metric={calories}
-            unitColor={colors.textSecondaryOnParchment}
+            unitColor={colors.textSecondary}
           />
           <Text
             allowFontScaling
             selectable
-            style={[typography.caption, { color: colors.textSecondaryOnParchment }]}
+            style={[typography.caption, { color: colors.textSecondary }]}
           >
             {metricGoalText(calories)}
           </Text>
         </View>
 
+        {/* Protein is the one metric that gets the accent — it leads because
+            this is a protein-first tracker, not a calorie-first one. */}
         <View
           accessible
           accessibilityLabel={metricAccessibilityLabel(protein)}
           style={{ alignItems: stackMetrics ? 'flex-start' : 'flex-end', flexShrink: 0, gap: spacing.xxs }}
         >
-          <Text allowFontScaling selectable style={[typography.metricSecondary, { color: colors.action }] }>
+          <Text allowFontScaling selectable style={[typography.metricSecondary, { color: colors.action }]}>
             {metricValueText(protein)}{metricUnit(protein)}
           </Text>
-          <Text allowFontScaling selectable style={[typography.overline, { color: colors.textSecondaryOnParchment }] }>
+          <Text allowFontScaling selectable style={[typography.overline, { color: colors.textSecondary }]}>
             Protein
           </Text>
           <Text
@@ -109,7 +120,7 @@ function EnergyHero({ calories, protein }: { readonly calories: TodayMetric; rea
             style={[
               typography.caption,
               {
-                color: colors.textSecondaryOnParchment,
+                color: colors.textSecondary,
                 textAlign: stackMetrics ? 'left' : 'right',
               },
             ]}
@@ -126,19 +137,17 @@ function EnergyHero({ calories, protein }: { readonly calories: TodayMetric; rea
           accessibilityRole="progressbar"
           accessibilityValue={{ min: 0, max: 100, now: percentage, text: `${percentage} percent` }}
           style={{
-            backgroundColor: colors.parchmentMuted,
+            backgroundColor: colors.surfaceMuted,
             borderRadius: radii.capsule,
-            height: 3,
+            height: 4,
             overflow: 'hidden',
           }}
         >
           <View
             style={{
-              backgroundColor: over
-                ? colors.energyProgressOverOnParchment
-                : colors.energyProgressOnParchment,
+              backgroundColor: over ? colors.destructive : colors.action,
               borderRadius: radii.capsule,
-              height: 3,
+              height: 4,
               width: `${percentage}%`,
             }}
           />
@@ -158,21 +167,13 @@ function CompactMetric({
   readonly first: boolean;
 }) {
   const colors = useThemeColors();
-  const isProtein = code === 'protein-g';
-  const valueColor = metricGoalImpact(metric).tone === 'over'
-    ? colors.accentOnChrome
-    : isProtein
-      ? colors.accentOnChrome
-      : colors.textOnChrome;
 
   return (
     <View
-      accessible={!isProtein}
-      accessibilityLabel={!isProtein ? metricAccessibilityLabel(metric) : undefined}
-      accessibilityElementsHidden={isProtein}
-      importantForAccessibility={isProtein ? 'no-hide-descendants' : 'auto'}
+      accessible
+      accessibilityLabel={metricAccessibilityLabel(metric)}
       style={{
-        borderLeftColor: colors.chromeBorder,
+        borderLeftColor: colors.border,
         borderLeftWidth: first ? 0 : 1,
         flexBasis: 76,
         flexGrow: 1,
@@ -182,11 +183,11 @@ function CompactMetric({
         paddingVertical: spacing.sm,
       }}
     >
-      <Text allowFontScaling selectable style={[typography.overline, { color: colors.textSecondaryOnChrome }] }>
+      <Text allowFontScaling selectable style={[typography.overline, { color: colors.textSecondary }]}>
         {dashboardMetricLabels[code]}
       </Text>
-      <MetricValue color={valueColor} metric={metric} unitColor={colors.textSecondaryOnChrome} />
-      <Text allowFontScaling selectable style={[typography.caption, { color: colors.textSecondaryOnChrome }] }>
+      <MetricValue color={colors.textPrimary} metric={metric} unitColor={colors.textSecondary} />
+      <Text allowFontScaling selectable style={[typography.caption, { color: colors.textSecondary }]}>
         {metricGoalText(metric)}
       </Text>
     </View>
@@ -201,18 +202,17 @@ export function NutritionDashboard({ metrics }: NutritionDashboardProps) {
   const colors = useThemeColors();
   const calories = metricForCode(metrics, 'energy-kcal');
   const protein = metricForCode(metrics, 'protein-g');
-  const compactCodes: readonly TodayMetricCode[] = [
-    'protein-g',
-    'fiber-g',
-    'carbohydrate-g',
-    'fat-g',
-  ];
+  // Protein already leads the hero above; repeating it in the strip below —
+  // as the old parchment-and-macro-strip layout did — would say the same
+  // number twice. The strip's job is the three metrics that don't get a hero.
+  const compactCodes: readonly TodayMetricCode[] = ['fiber-g', 'carbohydrate-g', 'fat-g'];
 
   return (
     <View
       accessibilityLabel="Daily nutrition"
       style={{
-        borderColor: colors.parchmentBorder,
+        backgroundColor: colors.surface,
+        borderColor: colors.border,
         borderCurve: 'continuous',
         borderRadius: radii.card,
         borderWidth: 1,
@@ -222,8 +222,8 @@ export function NutritionDashboard({ metrics }: NutritionDashboardProps) {
       <EnergyHero calories={calories} protein={protein} />
       <View
         style={{
-          backgroundColor: colors.macroStrip,
-          borderTopColor: colors.chromeBorder,
+          backgroundColor: colors.surfaceMuted,
+          borderTopColor: colors.border,
           borderTopWidth: 1,
           flexDirection: 'row',
           flexWrap: 'wrap',
